@@ -1,0 +1,126 @@
+Tarixchi AI - Interactive History Learning Dashboard (Uzbek Language)
+Overview
+Create a premium, dark-themed educational dashboard web application called "Tarixchi AI" for learning Uzbek history. The interface should feel like a modern, gamified learning platform with rich visual content, interactive timelines, and AI-assisted tutoring features. The design language blends dark academia aesthetics with futuristic UI elements.
+Design System
+Color Palette
+Background: Deep navy/black gradient (bg-gradient-to-br from-slate-900 via-[#0a1628] to-[#0f172a])
+Primary Surface: Dark translucent cards (bg-slate-800/40 or bg-[#0f172a]/80) with backdrop blur (backdrop-blur-md)
+Borders: Subtle cyan/teal borders (border-cyan-500/20 or border-teal-500/30)
+Accent Colors:
+Cyan/Teal for primary actions and highlights (text-cyan-400, bg-cyan-500, shadow-cyan-500/20)
+Amber/Gold for gamification elements (XP, streaks, achievements)
+Emerald for progress indicators
+Text:
+Primary: White (text-white)
+Secondary: Slate gray (text-slate-300, text-slate-400)
+Muted: Slate-500 for timestamps and metadata
+Typography
+Font Family: Inter or system-ui for body text; use a slightly decorative serif for historical headings if available
+Headings: Bold, white, tracking-wide
+Body: Regular weight, slate-300, leading-relaxed
+Labels/Tags: Uppercase, tracking-wider, text-xs, font-semibold
+Spacing & Layout
+Container: Max-width 1440px, centered, generous padding (p-6 or p-8)
+Grid System: CSS Grid with auto-fit columns, gap-6 between cards
+Border Radius: Large rounded corners for cards (rounded-2xl or rounded-3xl), small for buttons (rounded-lg)
+Shadows: Soft colored glows for active elements (shadow-lg shadow-cyan-500/10)
+Component Specifications
+1. Top Navigation Bar
+Left: Logo "Tarixchi AI" with a compass/star icon in cyan/teal gradient
+Center: Live countdown timer (08:42 qoldi) with a sandclock icon, pause button, and tooltip text
+Right: Gamification stats in a row:
+XP counter: Lightning bolt icon + "2,450 XP" with +120 indicator
+Streak: Fire icon + "7 kun" with "Seriya" label
+Rank: Shield icon + "Oltin Liga" + "Top 12%"
+Social: Group avatars + "Do'stlar reytingi" + "+24"
+Style: Fixed top, glassmorphism effect, h-16, z-50
+2. Main Content Area (3-Column Layout)
+Left Column: AI Tutor Panel (25% width)
+Character: Animated illustration of a friendly young male tutor with glasses, wearing traditional-modern hybrid clothing (dark blue robe over white shirt), holding a book labeled "TARIX"
+Speech Bubble: Floating chat bubble with tail pointing to character, containing:
+Greeting: "Salom! 👋"
+Lesson intro text about Jadidchilik movement
+CTA: "Boshlaymizmi?"
+Controls (below character):
+Row 1: "Pauza" (pause) button with icon, "Savol ber" (ask question) button with question mark icon
+Row 2: "Oddiyroq tushuntir" (simplify) button with sparkle icon
+Row 3: Large primary CTA "Davom et →" in cyan gradient (bg-gradient-to-r from-cyan-500 to-teal-500)
+Bottom Progress: Horizontal step indicator showing "20 min Dars", "5 min Tanaflus", "Q&A Savol-javob", "Interview Suhbat", "Threads Xulosa"
+Active step highlighted in cyan, inactive in slate-600
+Icons: Book, Coffee cup, Chat bubbles, Microphone, Document
+Center Column: Lesson Content (50% width)
+Carousel/Slider: Horizontal scrollable content with navigation arrows (< >) on sides
+Slide 1 - Map Card:
+Title: "Turkiston xaritasi (XIX–XX asr boshlarida)"
+Content: Vintage-style historical map of Turkestan showing cities (Toshkent, Buxoro, Samarqand, Qo'qon)
+Style: Rounded corners, subtle border, hover zoom effect
+Slide 2 - Figures Gallery:
+Title: "Jadid ma'rifatparvarlari"
+3 portrait cards in a row:
+Mahmudxo'ja Behbudiy (1875–1919)
+Abdulla Avloniy (1878–1934)
+Munavvarqori Abdurashidov (1878–1931)
+Each card: Sepia/vintage photo, name below, years in muted text, hover lift effect
+Timeline Component:
+Title: "Jadidchilik harakati: muhim bosqichlar"
+Horizontal timeline with 4 nodes:
+1880–1890: "Yangi usul maktablari paydo bo'la boshladi"
+1905–1917: "Matbuot va teatr rivojlandi"
+1917–1918: "Milliy uyg'onish kuchaydi"
+1918–1924: "Islohotlar va jadid kayfiyati davom etdi"
+Active nodes: Cyan filled circles with glow
+Inactive nodes: Slate outline circles
+Connecting line: Gradient from cyan to slate
+Bottom Cards Row (3 cards):
+Card 1: "Turon" gazetasi (1913) - Vintage newspaper image with caption "Jadidlar matbuot orqali xalqni ma'rifatga chaqirgan."
+Card 2: "Jadid maktabi darsi" - Video thumbnail with play button overlay, duration "06:45", caption "Yangi usul maktablari – zamon talabiga javob bergan ta'lim tizimi."
+Card 3: "Jadidchilikning maqsadi" - Illustrated open book with floating icons (lightbulb, graduation cap, people, globe), caption "Ta'lim, taraqqiyot, milliy ong va islohotlar."
+Pagination Dots: 8 dots below content area, first 2 active (cyan), rest inactive (slate-600)
+Right Column: Notes & Study Panel (25% width)
+Header: "AI yozgan dars qaydlari" with sparkle icon and edit/pencil icon
+Sections:
+Asosiy xulosalar (Main Conclusions):
+Bullet points with cyan checkmarks or dots
+Content about Jadidchilik movement summary
+Qisqa imtihon eslatmasi (Quick Exam Notes):
+Compact text summary
+Muhim nuqtalar (Key Points):
+Checklist with emerald check icons
+Items: Yangi usul maktablari, Matbuot va adabiyot, Islohot va taraqqiyot, Milliy uyg'onish
+Action Buttons (stacked vertically):
+"Flashcard qilish" with card icon (purple/indigo gradient)
+"Testga aylantirish" with document icon (teal gradient)
+"Saqlash" with bookmark icon (dark slate with border)
+Bottom Input:
+Textarea: "Bugungi dars haqida o'z fikringni yoz..." with placeholder "Masalan: Bugun nimani o'rganding?"
+Send button (paper airplane icon)
+Progress ring: "70% O'zlashtirish darajangiz" with circular progress indicator
+Interactions & Animations
+Hover Effects: Cards lift up (-translate-y-1), border glow intensifies, shadow expands
+Button Hover: Gradient shifts, scale slightly up (scale-105)
+Timeline Nodes: Pulse animation on active node
+AI Character: Subtle idle animation (floating/breathing effect)
+Page Transitions: Smooth fade-in for carousel slides
+Loading States: Skeleton screens with shimmer effect for content loading
+Progress Ring: Animated SVG stroke-dashoffset on load
+Responsive Behavior
+Desktop: 3-column layout as described
+Tablet: Left column collapses to top bar, center and right stack vertically
+Mobile: Single column, hamburger menu for navigation, horizontal scroll for timeline
+Technical Requirements
+Use Tailwind CSS for all styling
+Implement dark mode by default (no toggle needed)
+Use CSS Grid and Flexbox for layouts
+Ensure high contrast ratios for accessibility
+Support RTL considerations for Uzbek text (though this is LTR)
+Use CSS variables for theme colors to allow easy customization
+Assets Needed
+Historical map image (Turkestan)
+Portrait photos of 3 historical figures (vintage style)
+Turon newspaper scan/image
+Classroom illustration for video thumbnail
+Book illustration with floating icons
+AI tutor character illustration (transparent background preferred)
+UI Icons: Book, coffee, chat, microphone, document, pause, play, arrow, check, sparkle, lightning, fire, shield, users, pencil, bookmark, paper plane
+Mood & Feel
+The interface should feel like a premium educational game - engaging, rewarding, and intellectually stimulating. Dark mode creates focus, while cyan/teal accents provide energy and modernity. Historical content should feel respected and elevated, not dry or boring. The AI tutor adds personality and approachability to serious historical content.

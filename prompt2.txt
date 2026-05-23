@@ -1,0 +1,543 @@
+You are a senior backend engineer and AI integration architect.
+
+Build the backend AI layer for “Tarixchi AI”, an AI-powered interactive history lesson platform for Uzbek school students.
+
+The goal:
+Admin provides source files or source text about a history topic.
+The backend analyzes the material using free or free-tier AI providers and generates structured lesson data for the frontend lesson page.
+
+This is an MVP backend.
+Do not overbuild.
+The backend must work even if API keys are missing.
+Use provider fallback:
+1. Gemini API
+2. Groq API
+3. OpenRouter API
+4. Ollama local
+5. Mock fallback
+
+====================================================
+PROJECT CONTEXT
+====================================================
+
+Product:
+Tarixchi AI
+
+Main page:
+Interactive lesson page.
+
+Lesson page needs:
+1. Gamification atmosphere
+2. AI teacher speaking on the left
+3. Presentation boxes on the right with images, video placeholders, timeline, map, animation ideas
+4. 20 minute lesson
+5. 5 minute break
+6. Q&A
+7. Interview with historical person
+8. Threads/reflection
+9. AI notes after lesson
+10. Ranking/XP/streak system
+11. Countdown timer
+12. Timer pauses when student asks a question
+
+Backend must generate the data required by this lesson page.
+
+====================================================
+TECH STACK
+====================================================
+
+Use:
+- Next.js App Router
+- TypeScript
+- API routes / route handlers
+- Zod for schema validation if possible
+- Environment variables for API keys
+- No database for first MVP unless simple
+- Store default/generated lesson data in memory or static JSON fallback
+- Keep code clean and easy to extend
+
+Environment variables:
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+OLLAMA_BASE_URL=http://localhost:11434
+
+Do not expose API keys to frontend.
+
+====================================================
+AI PROVIDER STRATEGY
+====================================================
+
+Create an AI provider abstraction.
+
+Create files:
+lib/ai/providers/types.ts
+lib/ai/providers/gemini.ts
+lib/ai/providers/groq.ts
+lib/ai/providers/openrouter.ts
+lib/ai/providers/ollama.ts
+lib/ai/providers/mock.ts
+lib/ai/aiRouter.ts
+lib/ai/prompts.ts
+lib/ai/schemas.ts
+
+Provider interface:
+
+type AIProvider = {
+  name: string;
+  isAvailable: () => boolean;
+  generateText: (params: GenerateTextParams) => Promise<GenerateTextResult>;
+  generateLessonJson?: (params: GenerateLessonParams) => Promise<LessonJson>;
+}
+
+aiRouter behavior:
+- Try Gemini first.
+- If Gemini key missing or request fails, try Groq.
+- If Groq key missing or request fails, try OpenRouter.
+- If OpenRouter key missing or request fails, try Ollama local.
+- If Ollama fails, return mock fallback.
+- Always return valid JSON response.
+- Never crash.
+- Include providerUsed in every response.
+
+====================================================
+WHY EACH PROVIDER
+====================================================
+
+Gemini:
+Use as primary provider for:
+- analyzing source text
+- PDF/document-based lesson generation
+- structured JSON lesson output
+
+Groq:
+Use as fast fallback for:
+- student Q&A
+- shorter explanations
+- adaptive answers
+
+OpenRouter:
+Use as general fallback:
+- free model router
+- backup answer generation
+
+Ollama:
+Use as local fallback:
+- if local server is running
+- call OLLAMA_BASE_URL + /api/chat or /api/generate
+- model can be “gemma3”, “llama3.1”, or configurable with OLLAMA_MODEL
+
+Mock:
+Use when all AI providers fail.
+
+====================================================
+REQUIRED API ENDPOINTS
+====================================================
+
+1. POST /api/admin/generate-lesson
+
+Purpose:
+Admin gives source content. Backend generates a full structured lesson JSON.
+
+Input:
+{
+  "topic": "Jadidchilik harakati",
+  "grade": "8-sinf",
+  "sourceText": "....",
+  "language": "uz-Latn"
+}
+
+Behavior:
+- Validate input.
+- Use Gemini if available.
+- Ask AI to transform sourceText into structured lesson JSON.
+- If Gemini fails, try fallback providers.
+- If all fail, return default demo lesson JSON.
+- Response must include:
+  {
+    "success": true,
+    "providerUsed": "gemini" | "groq" | "openrouter" | "ollama" | "mock",
+    "lesson": LessonJson
+  }
+
+Important:
+Do not invent facts.
+If source is missing, write "source needed".
+Output must match LessonJson schema.
+
+2. POST /api/lesson/ask
+
+Purpose:
+Student pauses lesson and asks question. Timer pauses on frontend.
+
+Input:
+{
+  "lessonId": "jadidchilik-harakati",
+  "sceneId": 3,
+  "question": "Jadidlar nega ta'limdan boshlagan?",
+  "studentLevel": "slow" | "normal" | "fast",
+  "currentSceneContext": "..."
+}
+
+Behavior:
+- Answer in Uzbek Latin.
+- Adapt answer to studentLevel.
+- If slow: simpler explanation, analogy, shorter sentences.
+- If normal: normal school-level answer.
+- If fast: deeper answer with cause-effect and challenge question.
+- Return:
+  {
+    "answer": "...",
+    "followUpQuestion": "...",
+    "timerAction": "pause",
+    "providerUsed": "...",
+    "suggestedNextAction": "continue_lesson" | "show_timeline" | "review_notes"
+  }
+
+3. POST /api/progress/update
+
+Purpose:
+Save/update student learning progress and classify learning speed.
+
+Input:
+{
+  "userId": "demo-user",
+  "lessonId": "jadidchilik-harakati",
+  "sceneId": 4,
+  "expectedSceneTimeSeconds": 120,
+  "actualTimeSpentSeconds": 180,
+  "pauseCount": 2,
+  "questionCount": 1,
+  "microQuestionCorrect": false,
+  "quizScore": 70
+}
+
+Behavior:
+- Calculate learningSpeed:
+  fast if actualTimeSpent < expected * 0.7 and quizScore >= 80
+  slow if actualTimeSpent > expected * 1.3 or quizScore < 60
+  otherwise normal
+- Return adaptive recommendation:
+  slow → "Oddiyroq tushuntirish va ko‘proq misollar berish"
+  normal → "Standart darsni davom ettirish"
+  fast → "Challenge savollar va chuqurroq tahlil berish"
+
+Return:
+{
+  "learningSpeed": "slow" | "normal" | "fast",
+  "adaptiveRecommendation": "...",
+  "nextContentMode": "simplified" | "standard" | "advanced"
+}
+
+4. POST /api/notes/generate
+
+Purpose:
+Generate personalized AI notes after lesson.
+
+Input:
+{
+  "lessonId": "jadidchilik-harakati",
+  "lessonSummary": "...",
+  "studentProgress": {
+    "learningSpeed": "slow",
+    "quizScore": 65,
+    "weakAreas": ["sabab-oqibat", "timeline"]
+  }
+}
+
+Output:
+{
+  "providerUsed": "...",
+  "notes": {
+    "keyTakeaways": [],
+    "examTips": [],
+    "weakPointsReview": [],
+    "oneSentenceSummary": "",
+    "recommendedNextStep": ""
+  }
+}
+
+5. POST /api/interview/ask
+
+Purpose:
+Ask question to a historical persona simulation.
+
+Input:
+{
+  "persona": "Mahmudxo'ja Behbudiy",
+  "topic": "Jadidchilik harakati",
+  "question": "Nega ta'lim siz uchun muhim bo'lgan?"
+}
+
+Behavior:
+- Return simulated answer based on historical context.
+- Must include disclaimer:
+  "Bu tarixiy shaxs asosidagi AI simulyatsiya."
+- Do not claim it is the real person's actual words.
+- Use Uzbek Latin.
+
+Output:
+{
+  "disclaimer": "...",
+  "answer": "...",
+  "providerUsed": "..."
+}
+
+====================================================
+LESSON JSON SCHEMA
+====================================================
+
+Create TypeScript types and Zod schema for:
+
+LessonJson:
+{
+  id: string;
+  title: string;
+  grade: string;
+  mission: string;
+  duration: {
+    lessonMinutes: number;
+    breakMinutes: number;
+    qaMinutes: number;
+    interviewMinutes: number;
+    threadsMinutes: number;
+    pauseOnQuestion: boolean;
+  };
+  gamification: {
+    xpReward: number;
+    badges: string[];
+    league: string;
+    streakReward: number;
+  };
+  scenes: LessonScene[];
+  breakSection: BreakSection;
+  qaPrompts: string[];
+  interview: InterviewSection;
+  threads: ThreadsSection;
+  aiNotes: AINotes;
+  timeline: TimelineEvent[];
+  causeEffect: CauseEffectNode[];
+  quiz: QuizQuestion[];
+  flashcards: Flashcard[];
+}
+
+LessonScene:
+{
+  sceneId: number;
+  timeRange: string;
+  estimatedSeconds: number;
+  teacherSpeech: string;
+  presentation: {
+    type: "map" | "portrait-cards" | "timeline" | "video-placeholder" | "quote" | "comparison" | "newspaper" | "infographic";
+    title: string;
+    description: string;
+    assetSuggestion: string;
+    imagePrompt: string;
+    animationIdea: string;
+    caption: string;
+  };
+  microQuestion?: {
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation: string;
+  };
+}
+
+AINotes:
+{
+  keyTakeaways: string[];
+  examTips: string[];
+  importantDates: string[];
+  causeEffectSummary: string[];
+  oneSentenceSummary: string;
+}
+
+QuizQuestion:
+{
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  skill: "fact" | "timeline" | "cause-effect" | "analysis" | "visual";
+}
+
+InterviewSection:
+{
+  persona: string;
+  disclaimer: string;
+  biographyShort: string;
+  suggestedQuestions: string[];
+  sampleAnswers: string[];
+}
+
+ThreadsSection:
+{
+  prompt: string;
+  samplePosts: string[];
+}
+
+====================================================
+CONTENT GENERATION PROMPT
+====================================================
+
+Create prompt function buildGenerateLessonPrompt(sourceText, topic, grade).
+
+The prompt must say:
+
+Sen Tarixchi AI content generation engine’san.
+Senga tarix mavzusi bo‘yicha source material beriladi.
+Vazifang: source materialni maktab o‘quvchilari uchun interaktiv AI dars JSON formatiga aylantirish.
+
+Qoidalar:
+1. Faqat source materialga tayan.
+2. Fakt aniq bo‘lmasa, "source needed" deb yoz.
+3. O‘zbek Latin tilida yoz.
+4. Dars qiziqarli, gamified va visual presentation formatida bo‘lsin.
+5. Teacher speech jonli, sodda va storytelling uslubida bo‘lsin.
+6. Har bir scene uchun presentation visual kerak.
+7. Har bir scene uchun animation idea kerak.
+8. Dars 20 minutlik bo‘lsin va 8–10 scene’ga bo‘linsin.
+9. 5 minut tanaffus, Q&A, interview, threads, AI notes, quiz, flashcards ham bo‘lsin.
+10. Output only valid JSON. No markdown.
+
+Return exactly LessonJson schema.
+
+====================================================
+STUDENT QUESTION PROMPT
+====================================================
+
+Create prompt function buildStudentQuestionPrompt(params).
+
+Prompt:
+Sen Tarixchi AI o‘qituvchisisan.
+O‘quvchi dars paytida savol berdi, shuning uchun timer to‘xtadi.
+Savolga qisqa, aniq, maktab o‘quvchisiga mos javob ber.
+StudentLevel:
+- slow: juda sodda, misol bilan tushuntir
+- normal: standart tushuntir
+- fast: chuqurroq, sabab-oqibat bilan tushuntir
+
+Javob strukturasi:
+1. Qisqa javob
+2. Nega muhim?
+3. Misol yoki sabab-oqibat
+4. Bitta tekshiruvchi savol
+
+Til: O‘zbek Latin.
+
+====================================================
+IMPLEMENT PROVIDERS
+====================================================
+
+Gemini provider:
+- Use fetch or official SDK if already installed.
+- Endpoint/model can be configurable.
+- Suggested model env:
+  GEMINI_MODEL=gemini-2.5-flash
+- For structured lesson generation, request JSON.
+- If JSON parse fails, try to extract JSON safely.
+- If still fails, throw provider error so aiRouter tries next provider.
+
+Groq provider:
+- Use OpenAI-compatible chat completions if simple.
+- Env:
+  GROQ_API_KEY
+  GROQ_MODEL=llama-3.3-70b-versatile or current available default
+- Good for text answers and fallback lesson generation.
+
+OpenRouter provider:
+- OpenAI-compatible API.
+- Env:
+  OPENROUTER_API_KEY
+  OPENROUTER_MODEL=openrouter/free
+- Use as fallback.
+- Include HTTP-Referer and X-Title headers if needed.
+
+Ollama provider:
+- Env:
+  OLLAMA_BASE_URL=http://localhost:11434
+  OLLAMA_MODEL=gemma3
+- Use /api/chat or /api/generate.
+- Timeout quickly, for example 15 seconds, so app does not hang if Ollama is not running.
+
+Mock provider:
+- Always available.
+- Return a complete Jadidchilik demo LessonJson.
+- Use realistic Uzbek Latin content.
+- This ensures MVP always works.
+
+====================================================
+ERROR HANDLING
+====================================================
+
+- Never return raw provider error to user.
+- Log errors server-side.
+- Return safe fallback.
+- Every endpoint must return valid JSON.
+- If sourceText is too short, return warning:
+  "Source material is too short; generated content may be incomplete."
+- If all providers fail, use mock.
+
+====================================================
+FRONTEND INTEGRATION NOTES
+====================================================
+
+Expose clean API responses that frontend lesson page can consume.
+
+Frontend lesson page needs:
+- lesson.scenes for presentation boxes
+- lesson.duration for timer
+- lesson.aiNotes for notes panel
+- lesson.gamification for XP/ranking
+- lesson.interview for interview block
+- lesson.threads for reflection block
+- /api/lesson/ask for pause-and-ask
+- /api/progress/update for learning speed
+- /api/notes/generate for personalized notes
+
+====================================================
+TESTING
+====================================================
+
+After implementation, test these cases:
+
+1. No API keys:
+- /api/admin/generate-lesson returns mock lesson
+- /api/lesson/ask returns mock answer
+- app does not crash
+
+2. Gemini key available:
+- /api/admin/generate-lesson returns providerUsed: "gemini"
+
+3. Bad source text:
+- backend returns warning but still works
+
+4. Student asks question:
+- returns timerAction: "pause"
+
+5. Progress update:
+- returns slow/normal/fast classification
+
+6. Notes generation:
+- returns personalized notes
+
+====================================================
+FINAL OUTPUT
+====================================================
+
+After coding:
+1. Show file structure.
+2. Explain how providers work.
+3. Explain how to get API keys:
+   - Gemini API key from Google AI Studio
+   - Groq API key from Groq Console
+   - OpenRouter API key from OpenRouter
+   - Ollama local server optional
+4. Explain environment variables.
+5. Explain how to run:
+   npm install
+   npm run dev
+6. Explain how to test without any API key.
+7. Confirm that mock fallback works.

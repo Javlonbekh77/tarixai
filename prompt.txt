@@ -1,0 +1,542 @@
+You are a senior full-stack product engineer, UI/UX designer, and AI product architect.
+
+Build a working MVP demo web application called “Tarixchi AI”.
+
+The app must be a clickable, polished, demo-ready MVP for an AI-powered history learning ecosystem for Uzbek school students.
+
+IMPORTANT:
+This is a 1-day MVP demo, not a production system.
+Do not overbuild.
+Do not add complex backend, authentication, payment, real social network, or database.
+Use localStorage and mock AI fallback where needed.
+The goal is to make the product feel real and convincing for a demo.
+
+====================================================
+PRODUCT CONCEPT
+====================================================
+
+Project name:
+Tarixchi AI
+
+Slogan:
+“Tarixni yodlama. Tarixchi kabi o‘yla.”
+
+One-line explanation:
+Tarixchi AI is an interactive AI-powered history learning ecosystem for school students who want to self-study history in a more engaging, visual, and personalized way.
+
+Problem:
+Many students study history by memorizing dates, names, and events. Extra history tutoring is becoming common, but much of the tutoring process is repetitive: the teacher explains some information, asks questions, checks whether the student read the material, and gives tests. This process can be boring and expensive.
+
+Solution:
+Tarixchi AI automates the repetitive part of the history teacher’s work:
+- explains topics through storytelling,
+- answers student questions during the lesson,
+- shows timelines and cause-effect visuals,
+- gives quizzes and image-based questions,
+- tracks student progress,
+- creates a personalized self-study experience.
+
+Target user:
+Uzbek school students, especially 7th–11th grade students who are learning history independently or preparing for tests.
+
+Main MVP demo user journey:
+1. User opens Tarixchi AI.
+2. User sees a modern dashboard.
+3. User goes to “Darsliklar”.
+4. User selects grade and topic.
+5. User opens “Jadidchilik harakati”.
+6. AI teacher explains the topic through storytelling.
+7. User can click “Nega muhim?”, “Oddiyroq tushuntir”, “Timeline ko‘rsat”, “Testga tayyorla”.
+8. User sees an interactive timeline.
+9. User sees a cause-effect map.
+10. User takes a quiz.
+11. Quiz score is saved in profile using localStorage.
+12. User can try “Interviews”, “Questions”, and “Threads” demo sections.
+13. User profile shows progress, quiz score, strengths, weaknesses, and completed topics.
+
+====================================================
+TECHNICAL REQUIREMENTS
+====================================================
+
+Use:
+- Next.js App Router
+- TypeScript
+- React
+- Tailwind CSS
+- localStorage for progress, quiz scores, and threads
+- No database
+- No real login
+- No payment
+- No external UI framework unless absolutely necessary
+- Keep dependencies minimal
+
+Optional:
+- If GEMINI_API_KEY is available in environment variables, create an API route that can call Gemini.
+- If no API key exists, the app must still work using mock AI responses.
+- Never break the demo because of missing API keys.
+
+Preferred folder structure:
+
+/app
+  /page.tsx
+  /api/ask-history/route.ts   optional, with fallback
+/components
+  Navbar.tsx
+  Dashboard.tsx
+  TextbookLibrary.tsx
+  LessonPage.tsx
+  Timeline.tsx
+  CauseMap.tsx
+  Quiz.tsx
+  Interview.tsx
+  Questions.tsx
+  Threads.tsx
+  Profile.tsx
+  ProgressCard.tsx
+/data
+  topics.ts
+  quizzes.ts
+  personas.ts
+  demoThreads.ts
+/lib
+  storage.ts
+  mockAi.ts
+  types.ts
+
+If this structure is too much for one file, create multiple components.
+The app must run with:
+npm install
+npm run dev
+
+====================================================
+DESIGN REQUIREMENTS
+====================================================
+
+Language:
+Uzbek Latin only.
+
+Design style:
+- Minimal
+- Modern
+- Clean
+- Professional
+- Not childish
+- Suitable for school students
+- White/light background
+- Dark navy, emerald, or blue accents
+- Rounded cards
+- Clear typography
+- Progress bars
+- Badges
+- Tabs/buttons
+- Responsive layout
+
+Do not make it look like a generic AI-generated colorful toy.
+Make it look like a serious educational product.
+
+Suggested navigation:
+- Bosh sahifa
+- Darsliklar
+- Interviews
+- Questions
+- Threads
+- Profile
+
+====================================================
+MAIN SECTIONS
+====================================================
+
+1. HOME / DASHBOARD
+
+Create a dashboard with:
+- Hero section:
+  “Tarixchi AI”
+  “Tarixni yodlama. Tarixchi kabi o‘yla.”
+  Short description:
+  “Maktab o‘quvchilari uchun interaktiv AI tarix o‘qituvchi: storytelling darslar, timeline, sabab-oqibat xaritalari, testlar va shaxsiy progress.”
+
+- Main CTA:
+  “Darsni boshlash”
+
+- Feature cards:
+  1. AI Darsliklar
+  2. Timeline va visual xaritalar
+  3. Test va feedback
+  4. Tarixiy shaxslar bilan suhbat
+  5. Public questions
+  6. Threads community
+
+- Small stats cards:
+  “3 demo mavzu”
+  “1 to‘liq interaktiv dars”
+  “5+ quiz”
+  “Profile progress”
+
+2. DARSLIKLAR SECTION
+
+Create textbook library:
+- Grade filter buttons:
+  6-sinf, 7-sinf, 8-sinf, 9-sinf, 10-sinf, 11-sinf
+
+For MVP, only 8-sinf has demo topics:
+- Jadidchilik harakati — full lesson
+- Amir Temur davlati — demo topic
+- Xonliklar davri — demo topic
+
+Each topic card must show:
+- title
+- grade
+- short description
+- estimated time
+- difficulty
+- button: “Darsni boshlash”
+
+3. LESSON PAGE
+
+Main demo lesson:
+“Jadidchilik harakati”
+
+The lesson page must feel like an AI teacher is teaching the student.
+
+Layout:
+- Left or main area: AI storytelling lesson
+- Right or lower area: interactive tools/tabs:
+  - Dars
+  - Timeline
+  - Sabab-oqibat
+  - Test
+  - Savol berish
+
+Lesson content must include:
+- Qisqa kirish
+- Kontekst
+- Asosiy sabablar
+- Asosiy shaxslar
+- Oqibatlar
+- Nega muhim?
+- Tekshiruvchi savol
+
+Add buttons under lesson:
+- “Nega muhim?”
+- “Oddiyroq tushuntir”
+- “Timeline ko‘rsat”
+- “Testga tayyorla”
+- “Darsni eshitish”
+
+Button behavior:
+- “Nega muhim?” shows an explanation panel.
+- “Oddiyroq tushuntir” shows simplified explanation.
+- “Timeline ko‘rsat” switches to timeline tab.
+- “Testga tayyorla” switches to quiz tab.
+- “Darsni eshitish” uses browser speechSynthesis to read lesson text aloud.
+
+4. TIMELINE COMPONENT
+
+Create a clean interactive timeline for Jadidchilik.
+
+Timeline events:
+1. XIX asr oxiri — Islohot ehtiyoji kuchaydi
+2. 1900-yillar — Yangi usul maktablari paydo bo‘ldi
+3. 1906–1914 — Matbuot va ma’rifat faoliyati kuchaydi
+4. 1917-yil — Siyosiy faollik kuchaydi
+5. 1920-yillar — Jadidlar bosim ostida qoldi
+
+Each event should be clickable.
+When clicked, show:
+- short explanation
+- “Nega muhim?” text
+
+5. CAUSE-EFFECT MAP
+
+Create a visual cause-effect flow.
+
+For MVP, do not use complex graph libraries unless necessary.
+A clean vertical or horizontal flow is enough.
+
+Nodes:
+- Ta’limdagi orqalik
+- Islohot ehtiyoji
+- Yangi usul maktablari
+- Matbuot va ma’rifat
+- Milliy ong
+- Siyosiy faollik
+- Jamiyatga ta’sir
+
+Each node should be clickable.
+When clicked, show an explanation.
+
+Also add a small AI-style prompt:
+“Endi o‘ylab ko‘ring: jadidlar nega aynan ta’limdan boshlagan?”
+
+6. QUIZ COMPONENT
+
+Create quiz for Jadidchilik.
+
+Requirements:
+- At least 6 questions
+- Mix of factual, cause-effect, and analytical questions
+- Include at least one image-style question placeholder:
+  Example: show a simple card “Rasmli savol: Bu jadid ma’rifatparvari kim?” with options.
+  Use placeholder image area if real image is not available.
+
+Quiz behavior:
+- User selects answers.
+- User submits.
+- Show score.
+- Show feedback.
+- Save result to localStorage.
+- Mark topic as completed.
+- Update profile statistics.
+
+Quiz questions examples:
+1. Jadidchilik harakatining asosiy maqsadlaridan biri nima edi?
+2. Jadidlar nega ta’limga katta e’tibor bergan?
+3. Yangi usul maktablari nima uchun muhim edi?
+4. Jadidchilik faqat maktab ochish bilan cheklanganmi?
+5. Matbuot jadidlar uchun qanday rol o‘ynagan?
+6. Rasmli savol placeholder: “Bu tarixiy shaxs qaysi harakat bilan bog‘liq?”
+
+Feedback format:
+- “Faktlarni yaxshi tushundingiz”
+- “Sabab-oqibatni yanada chuqurroq o‘rganish kerak”
+- “Keyingi tavsiya: Timeline bo‘limini qayta ko‘ring”
+
+7. QUESTIONS SECTION
+
+Create a public-style AI question section.
+
+User can type any history-related question.
+For MVP:
+- If API exists, send to /api/ask-history.
+- If API does not exist or fails, return mock answer.
+
+Mock answer structure:
+- Qisqa javob
+- Kontekst
+- Sabablar
+- Oqibatlar
+- Nega muhim?
+- Tekshiruvchi savol
+
+Example question:
+“Jadidlar nega ta’limdan boshlagan?”
+
+Example mock answer:
+“Jadidlar ta’limni jamiyatni uyg‘otishning eng asosiy vositasi deb ko‘rgan. Chunki savodxonlik oshsa, odamlar matbuotni o‘qiydi, yangiliklarni tushunadi va jamiyatdagi muammolarni anglay boshlaydi...”
+
+8. INTERVIEWS SECTION
+
+Create historical interview demo.
+
+Important disclaimer:
+“Bu tarixiy shaxs asosidagi AI simulyatsiya. Javoblar tarixiy kontekst, mashhur fikrlar va biografik ma’lumotlarga moslashtirilgan. Bu real shaxsning haqiqiy nutqi emas.”
+
+Personas:
+1. Amir Temur
+   Role: davlat arbobi va sarkarda
+   Style: strategiya, intizom, adolat, davlat boshqaruvi
+
+2. Mahmudxo‘ja Behbudiy
+   Role: jadid ma’rifatparvari
+   Style: ta’lim, ma’rifat, matbuot, jamiyat islohoti
+
+Interview UI:
+- Select persona
+- Show biography card
+- Input question
+- Return mock persona-style answer
+- Include 2–3 suggested questions:
+  “Bugungi yoshlar tarixdan qanday saboq olishi kerak?”
+  “Ta’lim nega muhim?”
+  “Jamiyatni o‘zgartirish uchun nima kerak?”
+
+9. THREADS SECTION
+
+Create Twitter-like local community demo.
+
+Features:
+- User can write a short post.
+- Posts saved in localStorage.
+- Show demo posts.
+- Like button can increment local count.
+
+Demo posts:
+1. “Jadidchilik faqat maktab ochish emas, jamiyatni isloh qilish harakati ekan.”
+2. “Tarixni yodlashdan ko‘ra, sabab-oqibat bilan o‘rganish ancha qiziqarli.”
+3. “Bugun Amir Temur davlati mavzusidan leadership haqida ko‘p narsa tushundim.”
+
+10. PROFILE SECTION
+
+Create student profile page.
+
+Show:
+- Student name: “Demo o‘quvchi”
+- Completed topics
+- Quiz average
+- Last quiz score
+- Strengths
+- Weaknesses
+- Learning speed compared with demo average
+- Badges
+
+Example:
+- O‘rganilgan mavzular: 1/3
+- O‘rtacha test natijasi: 83%
+- Kuchli tomon: Faktlarni eslab qolish
+- Zaif tomon: Sabab-oqibatni tushuntirish
+- Tavsiya: “Jadidchilik timeline bo‘limini qayta ko‘rib chiqing.”
+
+Badges:
+- “Jadidchilik Starter”
+- “Timeline Explorer”
+- “Tarixiy Fikr Boshlovchi”
+
+====================================================
+DATA REQUIREMENTS
+====================================================
+
+Create static data files.
+
+topics.ts:
+Include 3 topics:
+1. Jadidchilik harakati
+2. Amir Temur davlati
+3. Xonliklar davri
+
+Jadidchilik must be detailed.
+Other two can be shorter but should look real.
+
+For each topic:
+- id
+- title
+- grade
+- description
+- estimatedTime
+- difficulty
+- lessonSections
+- timeline
+- causeMap
+- quiz
+
+quizzes.ts:
+Create quiz data with answer index and explanation.
+
+personas.ts:
+Create personas for Amir Temur and Behbudiy.
+
+demoThreads.ts:
+Create demo community posts.
+
+types.ts:
+Create TypeScript types for Topic, TimelineEvent, CauseNode, QuizQuestion, Persona, ThreadPost, UserProgress.
+
+====================================================
+AI API ROUTE REQUIREMENTS
+====================================================
+
+Create /api/ask-history/route.ts.
+
+Input:
+{
+  "question": string,
+  "topic": string,
+  "grade": string
+}
+
+Output:
+{
+  "answer": string,
+  "followUpQuestion": string,
+  "mode": "ai" | "fallback"
+}
+
+Logic:
+- If process.env.GEMINI_API_KEY exists, call Gemini API.
+- If key missing or API fails, return fallback answer.
+- Never expose API key to frontend.
+- Never crash.
+- Always return valid JSON.
+
+System prompt for AI:
+“Sen Tarixchi AI’san. O‘zbek maktab o‘quvchilariga tarixni yodlatmasdan, sabab-oqibat, kontekst va dalillar orqali tushuntirasan. O‘zbek Latin tilida javob ber. Har bir javobda qisqa javob, kontekst, sabablar, oqibatlar, nega muhim va bitta tekshiruvchi savol bo‘lsin. Tayyor esse yozib berma, yo‘naltir.”
+
+If Gemini implementation is uncertain, create a clear placeholder and fallback mock answer.
+The MVP must work without real API.
+
+====================================================
+LOCALSTORAGE REQUIREMENTS
+====================================================
+
+Use localStorage for:
+- completedTopics
+- quizScores
+- threads
+- lastVisitedTopic
+- profileStats
+
+Create helper functions in lib/storage.ts:
+- getProgress()
+- saveQuizScore(topicId, score)
+- markTopicCompleted(topicId)
+- getThreads()
+- saveThread(post)
+
+Make sure app works in browser and avoids hydration errors.
+If localStorage is used, access it only on client side.
+
+====================================================
+ACCEPTANCE CRITERIA
+====================================================
+
+The MVP is complete only if:
+
+1. App runs with npm run dev.
+2. Home dashboard works.
+3. User can open Darsliklar.
+4. User can open Jadidchilik lesson.
+5. Lesson shows storytelling content.
+6. Timeline is visible and clickable.
+7. Cause-effect map is visible and clickable.
+8. Quiz works and shows score.
+9. Quiz score is saved to localStorage.
+10. Profile shows saved quiz result.
+11. Questions section returns either AI or fallback answer.
+12. Interview section works with 2 personas.
+13. Threads section allows creating a local post.
+14. Design is clean and responsive.
+15. No missing imports.
+16. No TypeScript errors.
+17. No runtime crash if API key is missing.
+18. Prepare final notes explaining how to run, how to deploy to Vercel, and what is mock vs real.
+
+====================================================
+DO NOT DO
+====================================================
+
+Do not create a real authentication system.
+Do not create a real database.
+Do not create payment.
+Do not build full social media backend.
+Do not use copyrighted images.
+Do not require paid API.
+Do not make the app depend on external services.
+Do not make the design too childish.
+Do not make the answer only a landing page.
+This must be an interactive MVP.
+
+====================================================
+FINAL OUTPUT
+====================================================
+
+After implementation:
+1. Show the file structure.
+2. Explain what you built.
+3. Explain how to run:
+   npm install
+   npm run dev
+4. Explain optional environment variable:
+   GEMINI_API_KEY=...
+5. Explain what works with mock data.
+6. Verify the app by running it.
+7. Fix any errors found.
+8. Provide a concise demo script for presenting the product.
