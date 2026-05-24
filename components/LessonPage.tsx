@@ -198,10 +198,17 @@ export function LessonPage({ topic }: { topic: Topic }) {
 
   function playServerAudio(audioUrl: string, onDone?: () => void) {
     audioRef.current?.pause();
-    startTranscriptPlayback(teacherSpeech);
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
-    audio.onplay = () => setIsSpeaking(true);
+    audio.onloadedmetadata = () => {
+      startTranscriptPlayback(teacherSpeech, audio.duration);
+    };
+    audio.onplay = () => {
+      setIsSpeaking(true);
+      if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+        startTranscriptPlayback(teacherSpeech);
+      }
+    };
     audio.onended = () => {
       setIsSpeaking(false);
       onDone?.();
@@ -219,9 +226,9 @@ export function LessonPage({ topic }: { topic: Topic }) {
   function speakBrowser(text: string, onDone?: () => void) {
     if (!("speechSynthesis" in window)) { onDone?.(); return; }
     window.speechSynthesis.cancel();
-    startTranscriptPlayback(text);
     const voice = pickBestVoice(window.speechSynthesis.getVoices());
     const chunks = splitSpeechIntoChunks(normalizeSpeechTextForTemplate(text));
+    const spokenWords: string[] = [];
     let chunkIndex = 0;
 
     function speakNextChunk() {
@@ -233,12 +240,18 @@ export function LessonPage({ topic }: { topic: Topic }) {
       }
 
       const utterance = new SpeechSynthesisUtterance(chunk);
+      const chunkWords = chunk.split(/\s+/).filter(Boolean);
       if (voice) utterance.voice = voice;
       utterance.lang = voice?.lang || "uz-UZ";
       utterance.rate = getBrowserSpeechRate(voice);
       utterance.pitch = 0.96;
       utterance.volume = 1;
+      utterance.onstart = () => {
+        startTranscriptPlayback(chunk, estimateSpeechDuration(chunkWords.length, utterance.rate), spokenWords.join(" "));
+      };
       utterance.onend = () => {
+        spokenWords.push(...chunkWords);
+        setTutorTranscript(spokenWords.join(" "));
         chunkIndex += 1;
         window.setTimeout(speakNextChunk, 180);
       };
@@ -265,7 +278,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
     }
   }
 
-  function startTranscriptPlayback(text: string) {
+  function startTranscriptPlayback(text: string, durationSeconds?: number, prefix = "") {
     clearTranscriptTimer();
     const cleanText = normalizeSpeechTextForTemplate(text);
     const words = cleanText.split(/\s+/).filter(Boolean);
@@ -275,14 +288,23 @@ export function LessonPage({ topic }: { topic: Topic }) {
     }
 
     let index = 0;
-    setTutorTranscript("");
+    const prefixWords = prefix.split(/\s+/).filter(Boolean);
+    const baseText = prefixWords.join(" ");
+    setTutorTranscript(baseText);
+    const durationMs = Number.isFinite(durationSeconds) && durationSeconds && durationSeconds > 0
+      ? durationSeconds * 1000
+      : estimateSpeechDuration(words.length, 0.84) * 1000;
+    const tickMs = 420;
+    const wordsPerTick = Math.max(1, Math.ceil(words.length / Math.max(1, durationMs / tickMs)));
+
     transcriptTimerRef.current = setInterval(() => {
-      index = Math.min(index + 5, words.length);
-      setTutorTranscript(words.slice(0, index).join(" "));
+      index = Math.min(index + wordsPerTick, words.length);
+      const visibleWords = [...prefixWords, ...words.slice(0, index)];
+      setTutorTranscript(visibleWords.join(" "));
       if (index >= words.length) {
         clearTranscriptTimer();
       }
-    }, 260);
+    }, tickMs);
   }
 
   /** Poll /api/media/tts/status/[jobId] every 2s until audio is ready */
@@ -1565,6 +1587,11 @@ function getBrowserSpeechRate(voice: SpeechSynthesisVoice | null) {
   if (lang.startsWith("tr") || lang.startsWith("az")) return 0.84;
   if (lang.startsWith("ru")) return 0.78;
   return 0.76;
+}
+
+function estimateSpeechDuration(wordCount: number, rate: number) {
+  const wordsPerMinute = 112 * Math.max(rate, 0.65);
+  return Math.max(1.6, (wordCount / wordsPerMinute) * 60);
 }
 
 function buildTutorSpeech(topicTitle: string, baseSpeech: string) {
