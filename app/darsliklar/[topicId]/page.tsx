@@ -6,12 +6,13 @@ export function generateStaticParams() {
   return topics.map((topic) => ({ topicId: topic.id }));
 }
 
-export default function TopicPage({
+export default async function TopicPage({
   params,
 }: {
-  params: { topicId: string };
+  params: Promise<{ topicId: string }>;
 }) {
-  const topic = topics.find((item) => item.id === params.topicId);
+  const { topicId } = await params;
+  const topic = topics.find((item) => item.id === topicId);
 
   if (!topic) {
     notFound();
