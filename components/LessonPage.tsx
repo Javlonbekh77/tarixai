@@ -95,8 +95,11 @@ export function LessonPage({ topic }: { topic: Topic }) {
   const [interviewQuestion, setInterviewQuestion] = useState("");
   const [interviewMessages, setInterviewMessages] = useState<Array<{ role: "user" | "persona"; text: string }>>([]);
   const [isInterviewLoading, setIsInterviewLoading] = useState(false);
+  const [tutorTranscript, setTutorTranscript] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const transcriptTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isSpeaking) return;
@@ -145,6 +148,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
       cancelled = true;
       audioRef.current?.pause();
       window.speechSynthesis?.cancel();
+      clearTranscriptTimer();
     };
   }, [topic]);
 
@@ -181,8 +185,20 @@ export function LessonPage({ topic }: { topic: Topic }) {
   const extraQuizQuestions = useMemo(() => buildExtraPracticeQuiz(topic, lesson), [lesson, topic]);
   const interviewPersona = useMemo(() => buildLessonPersona(topic, lesson), [lesson, topic]);
 
+  useEffect(() => {
+    setTutorTranscript("");
+    clearTranscriptTimer();
+  }, [activeSceneIndex]);
+
+  useEffect(() => {
+    const transcript = transcriptRef.current;
+    if (!transcript) return;
+    transcript.scrollTop = transcript.scrollHeight;
+  }, [tutorTranscript]);
+
   function playServerAudio(audioUrl: string, onDone?: () => void) {
     audioRef.current?.pause();
+    startTranscriptPlayback(teacherSpeech);
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
     audio.onplay = () => setIsSpeaking(true);
@@ -203,6 +219,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
   function speakBrowser(text: string, onDone?: () => void) {
     if (!("speechSynthesis" in window)) { onDone?.(); return; }
     window.speechSynthesis.cancel();
+    startTranscriptPlayback(text);
     const voice = pickBestVoice(window.speechSynthesis.getVoices());
     const chunks = splitSpeechIntoChunks(normalizeSpeechTextForTemplate(text));
     let chunkIndex = 0;
@@ -239,6 +256,33 @@ export function LessonPage({ topic }: { topic: Topic }) {
   function speakText(text = teacherSpeech, onDone?: () => void, audioUrl?: string | null) {
     if (audioUrl) { playServerAudio(audioUrl, onDone); return; }
     speakBrowser(text, onDone);
+  }
+
+  function clearTranscriptTimer() {
+    if (transcriptTimerRef.current) {
+      clearInterval(transcriptTimerRef.current);
+      transcriptTimerRef.current = null;
+    }
+  }
+
+  function startTranscriptPlayback(text: string) {
+    clearTranscriptTimer();
+    const cleanText = normalizeSpeechTextForTemplate(text);
+    const words = cleanText.split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      setTutorTranscript("");
+      return;
+    }
+
+    let index = 0;
+    setTutorTranscript("");
+    transcriptTimerRef.current = setInterval(() => {
+      index = Math.min(index + 5, words.length);
+      setTutorTranscript(words.slice(0, index).join(" "));
+      if (index >= words.length) {
+        clearTranscriptTimer();
+      }
+    }, 260);
   }
 
   /** Poll /api/media/tts/status/[jobId] every 2s until audio is ready */
@@ -319,6 +363,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
     audioRef.current?.pause();
     audioRef.current = null;
     window.speechSynthesis?.cancel();
+    clearTranscriptTimer();
     setIsSpeaking(false);
   }
 
@@ -603,11 +648,14 @@ export function LessonPage({ topic }: { topic: Topic }) {
               <VoiceWave />
             </div>
 
-            <div className="mt-2 max-h-28 overflow-hidden rounded-lg border border-slate-700/70 bg-slate-800/60 p-3 text-xs leading-relaxed text-slate-200">
+            <div
+              ref={transcriptRef}
+              className="mt-2 h-36 overflow-y-auto rounded-lg border border-slate-700/70 bg-slate-800/70 p-3 text-xs leading-relaxed text-slate-100 shadow-inner scrollbar-thin scrollbar-thumb-slate-600"
+            >
               {isGenerating
                 ? "Bir oz kuting, dars matni tayyorlanmoqda."
-                : teacherSpeech.slice(0, 260)}
-              {!isGenerating && teacherSpeech.length > 260 ? "..." : ""}
+                : tutorTranscript || teacherSpeech.slice(0, 260)}
+              {!isGenerating && !tutorTranscript && teacherSpeech.length > 260 ? "..." : ""}
             </div>
           </section>
 
@@ -1143,21 +1191,45 @@ export function LessonPage({ topic }: { topic: Topic }) {
 
 function TutorAvatar() {
   return (
-    <div className="relative h-32 w-32" style={{ animation: "floatTutor 4s ease-in-out infinite" }}>
-      <div className="absolute inset-x-5 bottom-0 h-20 rounded-[1.5rem] bg-gradient-to-br from-cyan-300 to-teal-500 shadow-2xl shadow-purple-500/20" />
-      <div className="absolute left-1/2 top-1 h-20 w-20 -translate-x-1/2 rounded-full bg-[#f2c49e] shadow-lg">
-        <div className="absolute -top-2 left-3 right-3 h-8 rounded-t-full bg-[#2a1b14]" />
-        <div className="absolute left-4 top-9 h-2.5 w-2.5 rounded-full bg-slate-900" />
-        <div className="absolute right-4 top-9 h-2.5 w-2.5 rounded-full bg-slate-900" />
-        <div className="absolute left-2.5 top-8 h-7 w-7 rounded-full border-2 border-slate-700" />
-        <div className="absolute right-2.5 top-8 h-7 w-7 rounded-full border-2 border-slate-700" />
-        <div className="absolute left-[36px] top-[43px] h-0.5 w-5 bg-slate-700" />
-        <div className="absolute bottom-5 left-1/2 h-2 w-8 -translate-x-1/2 rounded-full border-b-2 border-rose-700" />
+    <div className="relative h-36 w-36" style={{ animation: "floatTutor 4s ease-in-out infinite" }}>
+      <div className="absolute inset-2 rounded-[2rem] bg-gradient-to-br from-cyan-200 via-sky-400 to-blue-700 shadow-[0_0_34px_rgba(45,212,191,0.55)]" />
+      <div className="absolute inset-2 rounded-[2rem] bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.55),transparent_28%),linear-gradient(135deg,rgba(45,212,191,0.92),rgba(37,99,235,0.95))]" />
+      <div className="absolute inset-0 rounded-[2.2rem] border border-cyan-200/60" />
+
+      <div className="absolute left-1/2 top-4 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]" />
+      <div className="absolute left-1/2 top-6 h-8 w-1 -translate-x-1/2 rounded-full bg-white/90" />
+
+      <div className="absolute left-1/2 top-9 h-[58px] w-[92px] -translate-x-1/2 rounded-[1.8rem] bg-gradient-to-b from-white to-[#f3ece3] p-2 shadow-[0_10px_18px_rgba(15,23,42,0.3)]">
+        <div className="relative h-full w-full overflow-hidden rounded-[1.25rem] bg-gradient-to-br from-[#172451] via-[#075cae] to-[#0de0ff] shadow-inner">
+          <div className="absolute left-3 top-3 h-5 w-5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]">
+            <div className="absolute left-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#16224c]" />
+            <div className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-cyan-100" />
+          </div>
+          <div className="absolute right-3 top-3 h-5 w-5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]">
+            <div className="absolute left-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#16224c]" />
+            <div className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-cyan-100" />
+          </div>
+          <div className="absolute left-[35px] top-9 h-3 w-6 rounded-b-full border-b-4 border-cyan-100" />
+          <div className="absolute left-5 top-1.5 h-1.5 w-5 rounded-full bg-cyan-100/90" />
+          <div className="absolute right-5 top-1.5 h-1.5 w-5 rounded-full bg-cyan-100/90" />
+        </div>
       </div>
-      <div className="absolute bottom-5 left-9 h-12 w-9 rotate-[-18deg] rounded-full bg-cyan-300" />
-      <div className="absolute bottom-6 right-5 h-12 w-7 rotate-[28deg] rounded-full bg-cyan-300" />
-      <div className="absolute bottom-5 left-1/2 h-14 w-12 -translate-x-1/2 rounded-t-2xl bg-white" />
-      <div className="absolute bottom-11 left-1/2 h-9 w-3 -translate-x-1/2 bg-purple-500" />
+
+      <div className="absolute left-[18px] top-[58px] h-8 w-4 rounded-full bg-gradient-to-b from-white to-[#eadfd8] shadow-md" />
+      <div className="absolute right-[18px] top-[58px] h-8 w-4 rounded-full bg-gradient-to-b from-white to-[#eadfd8] shadow-md" />
+
+      <div className="absolute left-1/2 bottom-[18px] h-[50px] w-[76px] -translate-x-1/2 rounded-2xl bg-gradient-to-b from-white to-[#e8ded7] shadow-[0_10px_20px_rgba(15,23,42,0.28)]">
+        <div className="absolute left-1/2 top-3 grid h-7 w-10 -translate-x-1/2 place-items-center rounded-lg bg-gradient-to-br from-cyan-300 to-blue-500 shadow-inner">
+          <Play className="h-4 w-4 fill-white text-white" />
+        </div>
+      </div>
+
+      <div className="absolute bottom-8 left-5 h-9 w-5 rotate-[18deg] rounded-full bg-gradient-to-b from-white to-[#e8ded7] shadow-md" />
+      <div className="absolute bottom-8 right-5 h-9 w-5 rotate-[-18deg] rounded-full bg-gradient-to-b from-white to-[#e8ded7] shadow-md" />
+      <div className="absolute bottom-6 left-3 h-4 w-5 rotate-[28deg] rounded-full bg-[#f3ece3]" />
+      <div className="absolute right-1 top-[68px] grid h-7 w-7 place-items-center rounded-full bg-white text-[#1d4ed8] shadow-lg">
+        <MessageCircle className="h-4 w-4 fill-blue-100" />
+      </div>
     </div>
   );
 }
