@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 
-const PUBLIC_DIR = path.join(process.cwd(), "public");
+const PUBLIC_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), "public");
 const GENERATED_DIR = path.join(PUBLIC_DIR, "generated");
 const AUDIO_DIR = resolveGeneratedDir(process.env.MEDIA_AUDIO_DIR, path.join(GENERATED_DIR, "audio"));
 const IMAGE_DIR = path.join(GENERATED_DIR, "images");
@@ -83,7 +83,7 @@ function resolveKindDir(kind: "audio" | "images") {
 
 function resolveGeneratedDir(rawValue: string | undefined, fallback: string) {
   if (!rawValue) return fallback;
-  return path.isAbsolute(rawValue) ? rawValue : path.join(process.cwd(), rawValue);
+  return path.isAbsolute(rawValue) ? rawValue : path.join(/*turbopackIgnore: true*/ process.cwd(), rawValue);
 }
 
 function toPublicUrl(filePath: string) {

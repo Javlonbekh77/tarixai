@@ -8,9 +8,9 @@ import { getMuxlisaJobStore } from "@/lib/media/types";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { jobId: string } },
+  { params }: { params: Promise<{ jobId: string }> },
 ) {
-  const { jobId } = params;
+  const { jobId } = await params;
 
   if (!jobId) {
     return NextResponse.json({ success: false, error: "jobId is required" }, { status: 400 });

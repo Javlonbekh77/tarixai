@@ -315,7 +315,11 @@ export const muxlisaTtsProvider: TtsProvider = {
       throw new Error("Muxlisa did not return server audio.");
     }
 
-    const filePath = path.join(process.cwd(), "public", result.audioUrl.replace(/^\//, "").replace(/\//g, path.sep));
+    const filePath = path.join(
+      /*turbopackIgnore: true*/ process.cwd(),
+      "public",
+      result.audioUrl.replace(/^\//, "").replace(/\//g, path.sep),
+    );
     const data = await readFile(filePath);
     const extension = result.audioUrl.endsWith(".wav") ? "wav" : "mp3";
 
