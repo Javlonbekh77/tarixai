@@ -5,7 +5,6 @@ import type { ComponentType, FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Bookmark,
   BookOpen,
   CheckCircle2,
   Check,
@@ -54,6 +53,8 @@ type SceneMedia = {
   };
 };
 
+type PostLessonStage = "notes" | "quiz" | "extraQuiz" | "interview" | "done";
+
 const lessonPlan = [
   { title: "1. Asosiy dars", time: "20:00", icon: Play },
   { title: "2. Tanaffus", time: "05:00", icon: Coffee },
@@ -88,6 +89,12 @@ export function LessonPage({ topic }: { topic: Topic }) {
   const [isMediaLoading, setIsMediaLoading] = useState(false);
   const [isAudioPolling, setIsAudioPolling] = useState(false);
   const [showImageAlternatives, setShowImageAlternatives] = useState<number | null>(null);
+  const [postLessonStage, setPostLessonStage] = useState<PostLessonStage>("notes");
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, number>>({});
+  const [extraQuizAnswers, setExtraQuizAnswers] = useState<Record<string, number>>({});
+  const [interviewQuestion, setInterviewQuestion] = useState("");
+  const [interviewMessages, setInterviewMessages] = useState<Array<{ role: "user" | "persona"; text: string }>>([]);
+  const [isInterviewLoading, setIsInterviewLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -170,6 +177,9 @@ export function LessonPage({ topic }: { topic: Topic }) {
     () => (lesson ? buildLessonSummaryPoints(lesson) : buildSummaryPoints(topic)),
     [lesson, topic],
   );
+  const mainQuizQuestions = useMemo(() => buildPostLessonQuiz(topic, lesson), [lesson, topic]);
+  const extraQuizQuestions = useMemo(() => buildExtraPracticeQuiz(topic, lesson), [lesson, topic]);
+  const interviewPersona = useMemo(() => buildLessonPersona(topic, lesson), [lesson, topic]);
 
   function playServerAudio(audioUrl: string, onDone?: () => void) {
     audioRef.current?.pause();
@@ -319,6 +329,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
     setShowImageAlternatives(null);
     if (isLastScene) {
       setLessonCompleted(true);
+      setPostLessonStage("notes");
       return;
     }
     setActiveSceneIndex((current) => Math.min(current + 1, Math.max(scenes.length - 1, 0)));
@@ -384,6 +395,39 @@ export function LessonPage({ topic }: { topic: Topic }) {
       };
     });
     setShowImageAlternatives(null);
+  }
+
+  async function askInterviewQuestion(questionText: string) {
+    const trimmed = questionText.trim();
+    if (!trimmed || isInterviewLoading) return;
+
+    setInterviewMessages((current) => [...current, { role: "user", text: trimmed }]);
+    setInterviewQuestion("");
+    setIsInterviewLoading(true);
+
+    try {
+      const res = await fetch("/api/interview/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          persona: interviewPersona.name,
+          topic: topic.title,
+          question: trimmed,
+        }),
+      });
+      const data = await res.json();
+      setInterviewMessages((current) => [
+        ...current,
+        { role: "persona", text: data.answer || "Bu savolga tarixiy kontekst asosida javob berishga harakat qilaman." },
+      ]);
+    } catch {
+      setInterviewMessages((current) => [
+        ...current,
+        { role: "persona", text: "Hozir suhbat javobi tayyor bo'lmadi. Lekin savolni qayta berishingiz mumkin." },
+      ]);
+    } finally {
+      setIsInterviewLoading(false);
+    }
   }
 
   // Stop polling when component unmounts or scene changes
@@ -507,7 +551,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
   }, [answer, isAsking, lessonCompleted, question, showCheckPrompt]);
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#0a0e1a] text-slate-300 antialiased lg:overflow-hidden">
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#0a0e1a] text-slate-300 antialiased">
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.18),transparent_32%),radial-gradient(circle_at_70%_0%,rgba(16,185,129,0.09),transparent_28%),linear-gradient(135deg,#0a0e1a_0%,#111827_48%,#070a13_100%)]" />
 
       <header className="sticky top-0 z-50 h-14 border-b border-slate-800 bg-[#0a0e1a]/82 backdrop-blur-xl">
@@ -546,7 +590,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
         </div>
       )}
 
-      <main className="relative mx-auto grid max-w-[1440px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100vh-56px)] lg:grid-cols-[220px_minmax(0,1fr)]">
+      <main className="relative mx-auto grid max-w-[1440px] gap-3 px-3 py-3 sm:px-4 lg:min-h-[calc(100vh-56px)] lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="space-y-3 lg:self-start">
           <section className="rounded-xl border border-violet-500/25 bg-[#13182c]/90 p-3 shadow-2xl shadow-purple-950/20 backdrop-blur-sm">
             <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
@@ -584,7 +628,7 @@ export function LessonPage({ topic }: { topic: Topic }) {
               <div className="absolute left-4 top-7 bottom-7 w-px bg-gradient-to-b from-purple-500 via-slate-700 to-slate-800" />
               {lessonPlan.map((item, index) => {
                 const Icon = item.icon;
-                const active = !lessonCompleted && index === 0;
+                const active = getLessonPlanActiveIndex(lessonCompleted, postLessonStage) === index;
 
                 return (
                   <button
@@ -858,42 +902,225 @@ export function LessonPage({ topic }: { topic: Topic }) {
             </div>
 
             <div className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-800">
-              {notesTabs.map((tab) => (
+              {[
+                { id: "notes", label: "AI notelar" },
+                { id: "quiz", label: "Test" },
+                { id: "extraQuiz", label: "Qo'shimcha test" },
+                { id: "interview", label: "Mashhur bilan suhbat" },
+                { id: "done", label: "Yakun" },
+              ].map((tab) => (
                 <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  key={tab.id}
+                  onClick={() => setPostLessonStage(tab.id as PostLessonStage)}
                   className={`shrink-0 border-b-2 px-3 pb-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-purple-400 ${
-                    activeTab === tab
+                    postLessonStage === tab.id
                       ? "border-purple-400 text-purple-200"
                       : "border-transparent text-slate-500 hover:text-slate-300"
                   }`}
                 >
-                  {tab}
+                  {tab.label}
                 </button>
               ))}
             </div>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="space-y-3">
-                {summaryPoints.map((point) => (
-                  <div key={point} className="flex gap-3 rounded-xl bg-slate-900/35 p-3 text-sm leading-relaxed text-slate-300">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
-                    <span>{point}</span>
+            {postLessonStage === "notes" && (
+              <>
+                <div className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-800/80">
+                  {notesTabs.map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`shrink-0 border-b-2 px-3 pb-3 text-xs font-bold transition focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                        activeTab === tab ? "border-emerald-400 text-emerald-200" : "border-transparent text-slate-500 hover:text-slate-300"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <div className="space-y-3">
+                    {summaryPoints.map((point) => (
+                      <div key={point} className="flex gap-3 rounded-xl bg-slate-900/35 p-3 text-sm leading-relaxed text-slate-300">
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+                        <span>{point}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <ScrollIllustration />
-            </div>
+                  <ScrollIllustration />
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <ActionButton icon={Download} label="PDF yuklab olish" />
+                  <ActionButton icon={BookOpen} label="Flashcard qilish" />
+                  <button
+                    onClick={() => setPostLessonStage("quiz")}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 px-4 text-sm font-bold text-white transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                  >
+                    <ClipboardCheck className="h-4 w-4" />
+                    Testni boshlash
+                  </button>
+                </div>
+              </>
+            )}
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <ActionButton icon={Download} label="PDF yuklab olish" />
-              <ActionButton icon={BookOpen} label="Flashcard qilish" />
-              <ActionButton icon={RefreshCw} label="Testga aylantirish" />
-              <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 px-4 text-sm font-bold text-white transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-300">
-                <Bookmark className="h-4 w-4" />
-                Saqlash
-              </button>
-            </div>
+            {postLessonStage === "quiz" && (
+              <PostLessonQuizPanel
+                title="Dars testi"
+                description="Asosiy tushunchalarni tekshiramiz. Har bir savol darsdagi muhim joyga bog'langan."
+                questions={mainQuizQuestions}
+                answers={quizAnswers}
+                setAnswers={setQuizAnswers}
+                onComplete={() => setPostLessonStage("extraQuiz")}
+                completeLabel="Qo'shimcha testga o'tish"
+              />
+            )}
+
+            {postLessonStage === "extraQuiz" && (
+              <PostLessonQuizPanel
+                title="Qo'shimcha testlar"
+                description="Endi sabab-oqibat va tahlil savollari. Bu qism imtihon fikrlashini mustahkamlaydi."
+                questions={extraQuizQuestions}
+                answers={extraQuizAnswers}
+                setAnswers={setExtraQuizAnswers}
+                onComplete={() => setPostLessonStage("interview")}
+                completeLabel="Mashhur bilan suhbatga o'tish"
+              />
+            )}
+
+            {postLessonStage === "interview" && (
+              <section className="mt-6 grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-purple-500/15 text-xl font-black text-purple-100">
+                    {interviewPersona.name.charAt(0)}
+                  </div>
+                  <h3 className="mt-3 text-lg font-black text-white">{interviewPersona.name}</h3>
+                  <p className="mt-1 text-sm font-semibold text-purple-200">{interviewPersona.role}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-400">{interviewPersona.bio}</p>
+                  <div className="mt-4 space-y-2">
+                    {interviewPersona.suggestedQuestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => askInterviewQuestion(suggestion)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-950/40 p-2 text-left text-xs font-semibold text-slate-300 transition hover:border-purple-400 hover:text-white"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex min-h-[360px] flex-col rounded-xl border border-slate-700 bg-slate-950/35">
+                  <div className="border-b border-slate-800 p-4">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">AI simulyatsiya</div>
+                    <div className="mt-1 text-sm text-slate-300">Savol bering, tarixiy shaxs uslubida javob olasiz.</div>
+                  </div>
+                  <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                    {interviewMessages.length === 0 ? (
+                      <div className="grid h-full place-items-center text-center text-sm text-slate-500">
+                        Chapdagi savollardan birini tanlang yoki o'zingiz savol yozing.
+                      </div>
+                    ) : (
+                      interviewMessages.map((message, index) => (
+                        <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                          <div
+                            className={`max-w-[82%] rounded-2xl p-3 text-sm leading-relaxed ${
+                              message.role === "user"
+                                ? "bg-purple-600 text-white"
+                                : "border border-slate-700 bg-slate-900 text-slate-200"
+                            }`}
+                          >
+                            {message.text}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {isInterviewLoading && (
+                      <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/20 bg-purple-400/10 px-3 py-2 text-xs font-bold text-purple-100">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Javob tayyorlanmoqda
+                      </div>
+                    )}
+                  </div>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      askInterviewQuestion(interviewQuestion);
+                    }}
+                    className="flex gap-2 border-t border-slate-800 p-3"
+                  >
+                    <input
+                      value={interviewQuestion}
+                      onChange={(event) => setInterviewQuestion(event.target.value)}
+                      className="min-h-10 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-purple-400"
+                      placeholder="Savolingizni yozing..."
+                    />
+                    <button
+                      disabled={!interviewQuestion.trim() || isInterviewLoading}
+                      className="grid h-10 w-10 place-items-center rounded-lg bg-purple-600 text-white disabled:opacity-50"
+                      aria-label="Savol yuborish"
+                    >
+                      {isInterviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </button>
+                  </form>
+                  <div className="flex justify-end border-t border-slate-800 p-3">
+                    <button
+                      onClick={() => setPostLessonStage("done")}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-500 px-4 text-sm font-black text-slate-950"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Yakuniy xulosaga o'tish
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {postLessonStage === "done" && (
+              <section className="mt-6 rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-5">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-400 text-slate-950">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <h3 className="text-xl font-black text-white">Dars to'liq yakunlandi</h3>
+                    <p className="text-sm text-emerald-100/80">Asosiy dars, testlar va suhbat bosqichi tugadi.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {[
+                    `Asosiy test: ${calculateQuizScore(mainQuizQuestions, quizAnswers)}%`,
+                    `Qo'shimcha test: ${calculateQuizScore(extraQuizQuestions, extraQuizAnswers)}%`,
+                    `Suhbat savollari: ${interviewMessages.filter((message) => message.role === "user").length}`,
+                  ].map((item) => (
+                    <div key={item} className="rounded-xl border border-emerald-300/20 bg-slate-950/35 p-3 text-sm font-bold text-emerald-50">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      setLessonCompleted(false);
+                      setActiveSceneIndex(0);
+                      setQuizAnswers({});
+                      setExtraQuizAnswers({});
+                      setInterviewMessages([]);
+                    }}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-600 px-4 text-sm font-bold text-slate-200"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Darsni qayta boshlash
+                  </button>
+                  <Link
+                    href="/darsliklar"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 px-4 text-sm font-bold text-white"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    Boshqa darslar
+                  </Link>
+                </div>
+              </section>
+            )}
           </section>
           )}
         </section>
@@ -1073,6 +1300,118 @@ function ActionButton({
   );
 }
 
+function PostLessonQuizPanel({
+  title,
+  description,
+  questions,
+  answers,
+  setAnswers,
+  onComplete,
+  completeLabel,
+}: {
+  title: string;
+  description: string;
+  questions: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation: string;
+  }>;
+  answers: Record<string, number>;
+  setAnswers: (next: Record<string, number>) => void;
+  onComplete: () => void;
+  completeLabel: string;
+}) {
+  const answeredCount = questions.filter((question) => answers[question.id] !== undefined).length;
+  const score = calculateQuizScore(questions, answers);
+  const isComplete = answeredCount === questions.length;
+
+  return (
+    <section className="mt-6 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-xl font-black text-white">{title}</h3>
+          <p className="mt-1 max-w-2xl text-sm text-slate-400">{description}</p>
+        </div>
+        <div className="rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-3 text-right">
+          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Natija</div>
+          <div className="text-2xl font-black text-purple-200">{score}%</div>
+        </div>
+      </div>
+
+      <div className="h-2 overflow-hidden rounded-full bg-slate-900">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-purple-400 transition-all"
+          style={{ width: `${Math.round((answeredCount / Math.max(questions.length, 1)) * 100)}%` }}
+        />
+      </div>
+
+      <div className="grid gap-3">
+        {questions.map((question, index) => {
+          const selected = answers[question.id];
+          const hasAnswered = selected !== undefined;
+
+          return (
+            <div key={question.id} className="rounded-xl border border-slate-700 bg-slate-900/35 p-4">
+              <div className="mb-3 flex items-start gap-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-purple-500/15 text-xs font-black text-purple-100">
+                  {index + 1}
+                </span>
+                <h4 className="text-sm font-bold leading-relaxed text-white">{question.question}</h4>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {question.options.map((option, optionIndex) => {
+                  const isCorrect = optionIndex === question.correctIndex;
+                  const isSelected = optionIndex === selected;
+                  const className = hasAnswered
+                    ? isCorrect
+                      ? "border-emerald-400/70 bg-emerald-400/10 text-emerald-50"
+                      : isSelected
+                        ? "border-rose-400/70 bg-rose-400/10 text-rose-50"
+                        : "border-slate-700 bg-slate-950/35 text-slate-500"
+                    : "border-slate-700 bg-slate-950/35 text-slate-200 hover:border-purple-400";
+
+                  return (
+                    <button
+                      key={option}
+                      onClick={() => !hasAnswered && setAnswers({ ...answers, [question.id]: optionIndex })}
+                      disabled={hasAnswered}
+                      className={`flex min-h-11 items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${className}`}
+                    >
+                      <span>{option}</span>
+                      {hasAnswered && isCorrect ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              {hasAnswered && (
+                <div className="mt-3 rounded-lg border border-blue-300/20 bg-blue-400/10 p-3 text-xs leading-relaxed text-blue-50">
+                  {question.explanation}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-950/35 p-4">
+        <div className="text-sm font-semibold text-slate-300">
+          {answeredCount} / {questions.length} ta savol bajarildi
+        </div>
+        <button
+          onClick={onComplete}
+          disabled={!isComplete}
+          className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 px-4 text-sm font-bold text-white transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {completeLabel}
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function pickBestVoice(voices: SpeechSynthesisVoice[]) {
   const preferred = [
     "uz-UZ",
@@ -1179,6 +1518,106 @@ function buildSummaryPoints(topic: Topic) {
     ...fromCause,
     `${topic.title} mavzusini tushunish uchun asosiy savol: bu jarayon jamiyat hayotiga qanday ta'sir qilgan?`,
   ].slice(0, 5);
+}
+
+function getLessonPlanActiveIndex(lessonCompleted: boolean, stage: PostLessonStage) {
+  if (!lessonCompleted) return 0;
+  if (stage === "interview") return 3;
+  if (stage === "quiz" || stage === "extraQuiz" || stage === "done") return 4;
+  return 2;
+}
+
+function buildPostLessonQuiz(topic: Topic, lesson: LessonJson | null) {
+  const lessonQuiz = lesson?.quiz?.length
+    ? lesson.quiz.map((question) => ({
+        id: question.id,
+        question: question.question,
+        options: question.options,
+        correctIndex: question.correctIndex,
+        explanation: question.explanation,
+      }))
+    : [];
+
+  if (lessonQuiz.length) return lessonQuiz.slice(0, 6);
+
+  return topic.quiz.slice(0, 6).map((question) => ({
+    id: question.id,
+    question: question.question,
+    options: question.options,
+    correctIndex: question.correctIndex,
+    explanation: question.explanation,
+  }));
+}
+
+function buildExtraPracticeQuiz(topic: Topic, lesson: LessonJson | null) {
+  const firstCause = topic.causeMap[0]?.title || "Sabab";
+  const firstResult = topic.causeMap[topic.causeMap.length - 1]?.title || "Oqibat";
+  const keyTakeaway = lesson?.aiNotes.keyTakeaways[0] || topic.description;
+
+  return [
+    {
+      id: "extra-cause",
+      question: `${topic.title} mavzusida eng muhim sabab-oqibat bog'lanishi qaysi?`,
+      options: [
+        `${firstCause} -> ${firstResult}`,
+        "Faqat sanalarni yodlash -> mavzu tugaydi",
+        "Tasodifiy voqea -> hech qanday natija yo'q",
+      ],
+      correctIndex: 0,
+      explanation: "Tarixiy jarayonni tushunish uchun sabab va oqibatni birga ko'rish kerak.",
+    },
+    {
+      id: "extra-analysis",
+      question: "Darsdan keyingi eng yaxshi tahliliy xulosa qaysi?",
+      options: [
+        "Tarixiy jarayonlar odamlar fikri, ehtiyoji va qarori bilan bog'liq.",
+        "Tarixda faqat bitta voqea muhim bo'ladi.",
+        "Manbalar va dalillar kerak emas.",
+      ],
+      correctIndex: 0,
+      explanation: "Tahliliy fikrlash voqeani yodlashdan ko'ra chuqurroq: u sabab, dalil va natijani bog'laydi.",
+    },
+    {
+      id: "extra-key",
+      question: "Quyidagi fikrlardan qaysi biri dars mazmuniga eng yaqin?",
+      options: [
+        keyTakeaway,
+        "Bu mavzuda jamiyat hayotiga ta'sir bo'lmagan.",
+        "Bu mavzu faqat bitta shaxs bilan cheklanadi.",
+      ],
+      correctIndex: 0,
+      explanation: "Bu javob darsdagi asosiy xulosani ifodalaydi.",
+    },
+  ];
+}
+
+function buildLessonPersona(topic: Topic, lesson: LessonJson | null) {
+  const isJadid = topic.id.includes("jadid");
+  return {
+    name: lesson?.interview.persona || (isJadid ? "Mahmudxo'ja Behbudiy" : "Tarixiy shaxs"),
+    role: isJadid ? "Jadid ma'rifatparvari" : "Tarixiy suhbatdosh",
+    bio:
+      lesson?.interview.biographyShort ||
+      (isJadid
+        ? "Turkiston jadidchilik harakatining yetakchilaridan biri, muallim, dramaturg va publitsist."
+        : topic.description),
+    suggestedQuestions: lesson?.interview.suggestedQuestions?.length
+      ? lesson.interview.suggestedQuestions.slice(0, 4)
+      : [
+          "Bu mavzudan eng muhim saboq nima?",
+          "O'sha davr odamlari nimadan xavotirda edi?",
+          "Bugungi yoshlar bundan qanday xulosa chiqarishi kerak?",
+        ],
+  };
+}
+
+function calculateQuizScore(
+  questions: Array<{ id: string; correctIndex: number }>,
+  answers: Record<string, number>,
+) {
+  if (!questions.length) return 0;
+  const correct = questions.filter((question) => answers[question.id] === question.correctIndex).length;
+  return Math.round((correct / questions.length) * 100);
 }
 
 function buildLessonSummaryPoints(lesson: LessonJson) {
