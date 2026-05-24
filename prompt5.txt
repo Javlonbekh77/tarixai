@@ -1,0 +1,490 @@
+You are a senior full-stack engineer.
+
+We are building Tarixchi AI lesson page.
+
+Important change:
+Do NOT generate images with AI by default.
+Instead, add an internet image search system that finds real/openly licensed images for lesson presentation slides.
+
+Goal:
+For every lesson scene, search the internet for relevant images and return the best image result for the presentation box.
+
+Use provider fallback order:
+
+1. Wikimedia Commons / MediaWiki API
+2. Openverse API
+3. Pexels API if PEXELS_API_KEY exists
+4. Unsplash API if UNSPLASH_ACCESS_KEY exists
+5. Placeholder image fallback
+
+Do not use random Google Images scraping.
+Do not scrape websites directly.
+Use official APIs only.
+
+====================================================
+TECH STACK
+====================================================
+
+Use:
+- Next.js App Router
+- TypeScript
+- API routes
+- Server-side API calls only
+- No database for MVP
+- Cache search results in memory and optionally local JSON/file cache
+- Save selected image metadata
+- Do not expose API keys to frontend
+
+Create files:
+
+lib/media/imageSearch/types.ts
+lib/media/imageSearch/queryBuilder.ts
+lib/media/imageSearch/imageSearchRouter.ts
+lib/media/imageSearch/providers/wikimedia.ts
+lib/media/imageSearch/providers/openverse.ts
+lib/media/imageSearch/providers/pexels.ts
+lib/media/imageSearch/providers/unsplash.ts
+lib/media/imageSearch/providers/placeholder.ts
+lib/media/imageSearch/ranking.ts
+lib/media/imageSearch/cache.ts
+
+app/api/media/search-image/route.ts
+app/api/media/search-scene-images/route.ts
+
+====================================================
+ENV VARIABLES
+====================================================
+
+OPENVERSE_CLIENT_ID=
+OPENVERSE_CLIENT_SECRET=
+
+PEXELS_API_KEY=
+
+UNSPLASH_ACCESS_KEY=
+
+IMAGE_SEARCH_MODE=search
+IMAGE_SEARCH_CACHE_TTL_HOURS=168
+
+====================================================
+IMAGE SEARCH RESULT TYPE
+====================================================
+
+Create type ImageSearchResult:
+
+{
+  id: string;
+  provider: "wikimedia" | "openverse" | "pexels" | "unsplash" | "placeholder";
+  title: string;
+  imageUrl: string;
+  thumbnailUrl?: string;
+  sourceUrl?: string;
+  creator?: string;
+  license?: string;
+  licenseUrl?: string;
+  attributionText?: string;
+  width?: number;
+  height?: number;
+  score?: number;
+  tags?: string[];
+}
+
+Create type SearchImageInput:
+
+{
+  lessonId: string;
+  sceneId: number;
+  topic: string;
+  sceneTitle: string;
+  sceneDescription: string;
+  visualType: "map" | "portrait" | "newspaper" | "school" | "timeline" | "quote" | "infographic" | "general";
+  preferredLanguage?: "uz" | "en" | "ru";
+}
+
+Create type SearchImageOutput:
+
+{
+  success: boolean;
+  providerUsed: string;
+  query: string;
+  selectedImage: ImageSearchResult;
+  alternatives: ImageSearchResult[];
+  warning?: string;
+}
+
+====================================================
+QUERY BUILDER
+====================================================
+
+Create buildImageSearchQuery(input).
+
+The query must be based on:
+- topic
+- sceneTitle
+- sceneDescription
+- visualType
+
+For historical Uzbek topics, create better English/Russian/Uzbek search terms.
+
+Examples:
+
+Topic: Jadidchilik harakati
+Scene: Mahmudxo‘ja Behbudiy
+visualType: portrait
+Queries:
+- "Mahmudkhoja Behbudi portrait"
+- "Mahmudxoja Behbudiy"
+- "Behbudi Jadid portrait"
+
+Topic: Jadidchilik harakati
+Scene: Yangi usul maktablari
+visualType: school
+Queries:
+- "Jadid school Turkestan"
+- "new method schools Turkestan Jadid"
+- "usul-i jadid school"
+
+Topic: Turkiston xaritasi
+visualType: map
+Queries:
+- "Turkestan historical map"
+- "Russian Turkestan map"
+- "Central Asia Turkestan map 19th century"
+
+Topic: Matbuot va ma’rifat
+visualType: newspaper
+Queries:
+- "Jadid newspaper Turkestan"
+- "Turkestan jadid press"
+- "Sadoi Turkiston newspaper"
+
+Return 3–5 query variants.
+
+====================================================
+PROVIDER 1 — WIKIMEDIA COMMONS
+====================================================
+
+Implement Wikimedia Commons image search provider.
+
+Use official MediaWiki API.
+
+Endpoint:
+https://commons.wikimedia.org/w/api.php
+
+Use action=query with generator=search or action=query list=search.
+Search only files/images.
+
+Return:
+- image URL
+- thumbnail URL if available
+- title
+- source page URL
+- license metadata if available
+- attribution if available
+
+If metadata is difficult, still return sourceUrl and title.
+
+Important:
+- Prefer Wikimedia for historical people, maps, old newspapers, public domain images.
+- Avoid SVG icons unless visualType is infographic/map and it is relevant.
+- Filter out tiny images.
+- Filter out irrelevant logos.
+
+====================================================
+PROVIDER 2 — OPENVERSE
+====================================================
+
+Implement Openverse provider.
+
+Use Openverse API for openly licensed images.
+
+Endpoint:
+https://api.openverse.org/v1/images
+
+Search params:
+- q=query
+- page_size=10
+- mature=false
+
+Return:
+- title
+- url
+- thumbnail
+- creator
+- license
+- license_url
+- foreign_landing_url
+- source
+- attribution
+
+Important:
+Openverse content is openly licensed/public domain, but license accuracy should be verified before production.
+For MVP, show attribution and source URL.
+
+====================================================
+PROVIDER 3 — PEXELS
+====================================================
+
+Implement Pexels provider only if PEXELS_API_KEY exists.
+
+Endpoint:
+https://api.pexels.com/v1/search
+
+Headers:
+Authorization: PEXELS_API_KEY
+
+Use:
+- query
+- per_page=10
+- orientation=landscape
+
+Return:
+- src.large or src.large2x
+- photographer
+- photographer_url
+- url
+- alt
+
+Use Pexels mostly for generic visuals:
+- old books
+- classroom
+- parchment
+- historical atmosphere
+- not for exact historical facts.
+
+====================================================
+PROVIDER 4 — UNSPLASH
+====================================================
+
+Implement Unsplash provider only if UNSPLASH_ACCESS_KEY exists.
+
+Endpoint:
+https://api.unsplash.com/search/photos
+
+Headers:
+Authorization: Client-ID UNSPLASH_ACCESS_KEY
+
+Use:
+- query
+- per_page=10
+- orientation=landscape
+
+Return:
+- urls.regular
+- urls.small
+- user.name
+- user.links.html
+- links.html
+- alt_description
+
+Use Unsplash only for generic background imagery, not precise historical claims.
+
+====================================================
+RANKING LOGIC
+====================================================
+
+Create rankImages(results, input).
+
+Scoring:
++30 if title/source contains exact historical person/topic
++20 if provider is Wikimedia for historical-specific visual
++15 if provider is Openverse and license exists
++10 if landscape aspect ratio
++10 if image width >= 800
++10 if visualType matches title/tags
+-30 if image appears logo/icon when visualType is not infographic
+-20 if title is irrelevant
+-15 if image is portrait when visualType is map
+-15 if generic stock image for exact historical person
+-50 if no imageUrl
+
+For historical-specific scene:
+Prefer:
+1. Wikimedia
+2. Openverse
+3. Pexels/Unsplash only if no historical image found
+
+For generic scene:
+Pexels/Unsplash can be acceptable.
+
+Return selectedImage and alternatives.
+
+====================================================
+API ENDPOINT 1 — SEARCH SINGLE IMAGE
+====================================================
+
+Create:
+
+POST /api/media/search-image
+
+Input:
+{
+  "lessonId": "jadidchilik",
+  "sceneId": 1,
+  "topic": "Jadidchilik harakati",
+  "sceneTitle": "Turkiston xaritasi",
+  "sceneDescription": "XIX asr oxiri va XX asr boshlaridagi Turkiston hududi",
+  "visualType": "map"
+}
+
+Behavior:
+1. Build query variants.
+2. Search Wikimedia.
+3. Search Openverse.
+4. If not enough good results, search Pexels and Unsplash if keys exist.
+5. Rank results.
+6. Return selected image + alternatives.
+7. If all fail, return placeholder.
+
+Output:
+{
+  "success": true,
+  "providerUsed": "wikimedia",
+  "query": "Turkestan historical map",
+  "selectedImage": {...},
+  "alternatives": [...]
+}
+
+====================================================
+API ENDPOINT 2 — SEARCH SCENE IMAGES
+====================================================
+
+Create:
+
+POST /api/media/search-scene-images
+
+Input:
+{
+  "lessonId": string,
+  "topic": string,
+  "scenes": [
+    {
+      "sceneId": number,
+      "presentation": {
+        "title": string,
+        "type": string,
+        "description": string,
+        "imagePrompt": string
+      }
+    }
+  ]
+}
+
+Behavior:
+- For each scene, search image sequentially.
+- Do not overload APIs.
+- Add small delay between scenes if needed.
+- Return image result per scene.
+- Do not fail the whole request if one scene fails.
+
+Output:
+{
+  "success": true,
+  "results": [
+    {
+      "sceneId": 1,
+      "selectedImage": {...}
+    }
+  ]
+}
+
+====================================================
+PLACEHOLDER FALLBACK
+====================================================
+
+If no good internet image found:
+Create placeholder result:
+
+{
+  provider: "placeholder",
+  title: sceneTitle,
+  imageUrl: generated SVG data URL or /generated/images/placeholder.svg,
+  attributionText: "AI visual placeholder",
+  license: "N/A"
+}
+
+Placeholder should look like a premium EdTech slide:
+- dark navy background
+- title
+- visual type badge
+- short description
+
+====================================================
+FRONTEND INTEGRATION
+====================================================
+
+Lesson page presentation box should use:
+selectedImage.imageUrl
+
+Also show small attribution below image:
+- title
+- creator if available
+- license if available
+- source link if available
+
+Attribution format:
+“Image: {title} — {creator || provider}, {license || 'source'}”
+
+Add button:
+“Boshqa rasm tanlash”
+
+If user clicks:
+- show alternatives as small thumbnails.
+- selecting alternative changes presentation image.
+
+====================================================
+IMPORTANT RULES
+====================================================
+
+- Do not scrape Google Images.
+- Do not scrape random websites.
+- Use official APIs only.
+- Prefer openly licensed/public domain images.
+- Always save sourceUrl and license metadata if available.
+- For production, license must be reviewed.
+- For MVP, show attribution clearly.
+- Do not use generated images by default.
+- Gemini image generation can remain as optional fallback only if search fails, but for this task focus on internet search.
+
+====================================================
+TESTING
+====================================================
+
+Test with:
+
+1. Jadidchilik portrait:
+topic: Jadidchilik harakati
+sceneTitle: Mahmudxo‘ja Behbudiy
+visualType: portrait
+
+2. Turkiston map:
+topic: Jadidchilik harakati
+sceneTitle: Turkiston xaritasi
+visualType: map
+
+3. Jadid newspaper:
+topic: Jadidchilik harakati
+sceneTitle: Matbuot va ma’rifat
+visualType: newspaper
+
+4. Generic classroom:
+topic: Jadidchilik harakati
+sceneTitle: Yangi usul maktablari
+visualType: school
+
+Each should return:
+- selectedImage
+- alternatives
+- attribution metadata
+- placeholder fallback if no result
+
+====================================================
+FINAL OUTPUT
+====================================================
+
+After implementation:
+1. Show file structure.
+2. Explain provider order.
+3. Explain env variables.
+4. Explain how to test without API keys.
+5. Explain how to display attribution.
+6. Explain how to connect selectedImage.imageUrl to the presentation box.

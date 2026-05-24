@@ -38,7 +38,7 @@ Must return exactly the following JSON structure (do not include markdown wrappe
       "estimatedSeconds": 120,
       "teacherSpeech": "...",
       "presentation": {
-        "type": "map|portrait-cards|timeline|video-placeholder|quote|comparison|newspaper|infographic",
+        "type": "map|portrait-cards|timeline|video-placeholder|quote|comparison|newspaper|school|infographic",
         "title": "...",
         "description": "...",
         "assetSuggestion": "...",

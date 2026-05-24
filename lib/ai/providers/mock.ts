@@ -84,12 +84,82 @@ export const mockProvider: AIProvider = {
   name: "mock",
   isAvailable: () => true,
   generateText: async ({ prompt }) => {
+    const questionMatch = prompt.match(/savoli:\s*"([^"]+)"/i) || prompt.match(/Savol:\s*(.+)/i);
+    const contextMatch = prompt.match(/konteksti:\s*"([^"]+)"/i);
+    const question = questionMatch?.[1]?.trim() || "Bu mavzu bo'yicha savol";
+    const context = contextMatch?.[1]?.trim();
+
+    if (prompt.includes("suggestedNextAction") || prompt.includes("O'quvchining savoli")) {
+      return {
+        text: JSON.stringify({
+          answer: [
+            `Qisqa javob: ${question} savoliga javob shuki, bu jarayon mavzudagi asosiy sabab va oqibatlarni tushunishga yordam beradi.`,
+            context ? `Kontekst: ${context}` : "",
+            "Nega muhim? Chunki tarixda voqealar alohida emas, bir-biriga bog'langan holda yuz beradi.",
+            "Misol: agar ta'lim o'zgarsa, odamlarning dunyoqarashi ham o'zgaradi; dunyoqarash o'zgarsa, jamiyatda islohot talabi kuchayadi.",
+          ].filter(Boolean).join("\n\n"),
+          followUpQuestion: "Bu voqeaning eng muhim oqibati nima bo'lgan deb o'ylaysiz?",
+          suggestedNextAction: "continue_lesson",
+        }),
+        providerName: "mock",
+      };
+    }
+
     return {
-      text: "Bu Mock provider tomonidan qaytarilgan default javob. Aslida API ishlamayotgan bo'lishi mumkin.",
+      text: `Qisqa javob: ${question}\n\nBu savolga javob berishda mavzuning sababi, jarayoni va oqibatini ajratib ko'rish kerak. Avval nima muammo bo'lganini topamiz, keyin shu muammo qanday harakatga olib kelganini tushunamiz.\n\nTekshiruvchi savol: bu voqea jamiyat hayotida qanday o'zgarish yasagan?`,
       providerName: "mock"
     };
   },
-  generateLessonJson: async () => {
-    return MOCK_LESSON;
+  generateLessonJson: async ({ sourceText, topic, grade }) => {
+    if (!sourceText.trim()) return MOCK_LESSON;
+
+    const chunks = sourceText
+      .split(/\n+|(?<=\.)\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 8);
+
+    return {
+      ...MOCK_LESSON,
+      id: topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || MOCK_LESSON.id,
+      title: topic,
+      grade,
+      mission: `${topic} mavzusini sodda, ketma-ket va sabab-oqibat bilan tushunish`,
+      scenes: chunks.map((chunk, index) => ({
+        sceneId: index + 1,
+        timeRange: `${String(index * 2).padStart(2, "0")}:00 - ${String((index + 1) * 2).padStart(2, "0")}:00`,
+        estimatedSeconds: 120,
+        teacherSpeech: [
+          `Keling, ${topic} mavzusining muhim qismini tushunamiz.`,
+          chunk,
+          "Bu yerda faqat faktni yodlab olish yetarli emas. Avval qanday muammo bor edi, keyin odamlar qanday yechim izlashdi, oxirida bu jamiyatga qanday ta'sir qildi - shularni ketma-ket ko'ramiz.",
+          "Agar shu bog'lanishni tushunsangiz, mavzu imtihonda ham, mustaqil fikrlashda ham ancha oson bo'ladi.",
+        ].join(" "),
+        presentation: {
+          type: "infographic",
+          title: index === 0 ? topic : `Sahna ${index + 1}`,
+          description: chunk,
+          assetSuggestion: `${topic} historical education image`,
+          imagePrompt: `${topic} mavzusi uchun tarixiy, maktab darsiga mos rasm`,
+          animationIdea: "Rasm almashadi, asosiy jumla asta paydo bo'ladi",
+          caption: chunk,
+        },
+        microQuestion: {
+          question: `Bu sahnadan eng muhim xulosa nima?`,
+          options: [],
+          correctIndex: 0,
+          explanation: chunk,
+        },
+      })),
+      aiNotes: {
+        ...MOCK_LESSON.aiNotes,
+        keyTakeaways: chunks.slice(0, 3),
+        oneSentenceSummary: chunks[0] ?? `${topic} bo'yicha qisqa dars.`,
+      },
+      flashcards: chunks.slice(0, 5).map((chunk, index) => ({
+        front: `${topic}: ${index + 1}-xulosa`,
+        back: chunk,
+      })),
+    };
   }
 };

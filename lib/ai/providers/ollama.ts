@@ -3,7 +3,7 @@ import { buildGenerateLessonPrompt } from "../prompts";
 
 export const ollamaProvider: AIProvider = {
   name: "ollama",
-  isAvailable: () => true, // Assuming it might be available, we'll test it on call
+  isAvailable: () => process.env.OLLAMA_ENABLED === "true",
   generateText: async ({ prompt, systemInstruction, temperature = 0.7 }) => {
     const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
     const model = process.env.OLLAMA_MODEL || "gemma3";

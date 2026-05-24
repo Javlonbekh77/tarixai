@@ -1,0 +1,124 @@
+{
+  "expiresAt": 1780214414804,
+  "value": {
+    "success": true,
+    "providerUsed": "wikimedia",
+    "query": "Sahna 2",
+    "selectedImage": {
+      "id": "wikimedia:File:National Grand Theatre detail.jpg",
+      "provider": "wikimedia",
+      "title": "National Grand Theatre detail.jpg",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/5/52/National_Grand_Theatre_detail.jpg",
+      "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/National_Grand_Theatre_detail.jpg/960px-National_Grand_Theatre_detail.jpg",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:National_Grand_Theatre_detail.jpg",
+      "creator": "Aurelio Asiain from HIrakata-shi, Osaka, Japan",
+      "license": "CC BY-SA 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+      "width": 3872,
+      "height": 2592,
+      "tags": [
+        "National Grand Theatre detail.jpg",
+        "Jadidchilik harakati",
+        "infographic"
+      ],
+      "score": 60
+    },
+    "alternatives": [
+      {
+        "id": "wikimedia:File:Psalm Performing Arts Center.JPG",
+        "provider": "wikimedia",
+        "title": "Psalm Performing Arts Center.JPG",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/2/2d/Psalm_Performing_Arts_Center.JPG",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/Psalm_Performing_Arts_Center.JPG/960px-Psalm_Performing_Arts_Center.JPG",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Psalm_Performing_Arts_Center.JPG",
+        "creator": "M.O. Stevens",
+        "license": "CC BY 3.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by/3.0",
+        "width": 2429,
+        "height": 1785,
+        "tags": [
+          "Psalm Performing Arts Center.JPG",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:Don Quijote in Teatro Teresa Carreño.jpg",
+        "provider": "wikimedia",
+        "title": "Don Quijote in Teatro Teresa Carreño.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/e/e9/Don_Quijote_in_Teatro_Teresa_Carre%C3%B1o.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/Don_Quijote_in_Teatro_Teresa_Carre%C3%B1o.jpg/960px-Don_Quijote_in_Teatro_Teresa_Carre%C3%B1o.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Don_Quijote_in_Teatro_Teresa_Carre%C3%B1o.jpg",
+        "creator": "Theatrical Artwork by Laura Fiorucci . Picture by Wilfredor",
+        "license": "CC0",
+        "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+        "width": 2500,
+        "height": 1639,
+        "tags": [
+          "Don Quijote in Teatro Teresa Carreño.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:Christchurch Town Hall of the Performing Arts, New Zealand.jpg",
+        "provider": "wikimedia",
+        "title": "Christchurch Town Hall of the Performing Arts, New Zealand.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Christchurch_Town_Hall_of_the_Performing_Arts%2C_New_Zealand.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Christchurch_Town_Hall_of_the_Performing_Arts%2C_New_Zealand.jpg/960px-Christchurch_Town_Hall_of_the_Performing_Arts%2C_New_Zealand.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Christchurch_Town_Hall_of_the_Performing_Arts,_New_Zealand.jpg",
+        "creator": "Michal Klajban",
+        "license": "CC BY-SA 4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+        "width": 5421,
+        "height": 3535,
+        "tags": [
+          "Christchurch Town Hall of the Performing Arts, New Zealand.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:Performing Arts Center, Chico State, April 2020.jpg",
+        "provider": "wikimedia",
+        "title": "Performing Arts Center, Chico State, April 2020.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/0/08/Performing_Arts_Center%2C_Chico_State%2C_April_2020.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Performing_Arts_Center%2C_Chico_State%2C_April_2020.jpg/960px-Performing_Arts_Center%2C_Chico_State%2C_April_2020.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Performing_Arts_Center,_Chico_State,_April_2020.jpg",
+        "creator": "Frank Schulenburg",
+        "license": "CC BY-SA 4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+        "width": 5974,
+        "height": 4267,
+        "tags": [
+          "Performing Arts Center, Chico State, April 2020.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:Philadelphia High School for the Creative and Performing Arts.jpg",
+        "provider": "wikimedia",
+        "title": "Philadelphia High School for the Creative and Performing Arts.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Philadelphia_High_School_for_the_Creative_and_Performing_Arts.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Philadelphia_High_School_for_the_Creative_and_Performing_Arts.jpg/960px-Philadelphia_High_School_for_the_Creative_and_Performing_Arts.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Philadelphia_High_School_for_the_Creative_and_Performing_Arts.jpg",
+        "creator": "DrewDAndrea",
+        "license": "CC BY-SA 4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+        "width": 4000,
+        "height": 3000,
+        "tags": [
+          "Philadelphia High School for the Creative and Performing Arts.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      }
+    ]
+  }
+}

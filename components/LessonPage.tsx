@@ -1,388 +1,1390 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Topic } from "@/lib/types";
-import { 
-  Compass, Hourglass, Zap, Flame, Shield, Users,
-  Pause, HelpCircle, Sparkles, ArrowRight,
-  Book, Coffee, MessageCircle, Mic, FileText,
-  ChevronLeft, ChevronRight, CheckCircle2, Bookmark, Send, Edit3, Play, Lightbulb, GraduationCap, Globe
-} from "lucide-react";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentType, FormEvent } from "react";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Bookmark,
+  BookOpen,
+  CheckCircle2,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ClipboardCheck,
+  Coffee,
+  Download,
+  Lightbulb,
+  Loader2,
+  MessageCircle,
+  Pause,
+  Play,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Star,
+  Users,
+  Volume2,
+} from "lucide-react";
+import { Topic } from "@/lib/types";
+import type { LessonJson } from "@/lib/ai/schemas";
+import type { ImageSearchResult } from "@/lib/media/imageSearch/types";
+
+type AudioMode = "server_audio" | "async_audio" | "browser_fallback";
+
+type SceneAudio = {
+  providerUsed: string;
+  audioUrl: string | null;
+  mode: AudioMode;
+  finalText: string;
+  jobId?: string;
+  status: "pending" | "processing" | "completed" | "failed" | "fallback";
+};
+
+type SceneMedia = {
+  sceneId: number;
+  audio?: SceneAudio;
+  image?: {
+    providerUsed: string;
+    imageUrl: string;
+    prompt: string;
+    selectedImage?: ImageSearchResult;
+    alternatives?: ImageSearchResult[];
+    warning?: string;
+  };
+};
+
+const lessonPlan = [
+  { title: "1. Asosiy dars", time: "20:00", icon: Play },
+  { title: "2. Tanaffus", time: "05:00", icon: Coffee },
+  { title: "3. Savol-javob", time: "07:00", icon: MessageCircle },
+  { title: "4. Mashhur inson bilan suhbat", time: "08:00", icon: Users },
+  { title: "5. Test va mustahkamlash", time: "10:00", icon: ClipboardCheck },
+];
+
+const notesTabs = [
+  "Asosiy xulosalar",
+  "Muhim sanalar",
+  "Sabab-oqibat",
+  "Imtihon uchun",
+  "1 gaplik xulosa",
+];
 
 export function LessonPage({ topic }: { topic: Topic }) {
-  const [activeStep, setActiveStep] = useState(0);
-  const [slide, setSlide] = useState(0);
-  const [noteInput, setNoteInput] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const [activeTab, setActiveTab] = useState(notesTabs[0]);
+  const [lesson, setLesson] = useState<LessonJson | null>(null);
+  const [isGenerating, setIsGenerating] = useState(true);
+  const [providerUsed, setProviderUsed] = useState<string>("loading");
+  const [activeSceneIndex, setActiveSceneIndex] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showCheckPrompt, setShowCheckPrompt] = useState(false);
+  const [lessonCompleted, setLessonCompleted] = useState(false);
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [isAsking, setIsAsking] = useState(false);
+  const [sceneMedia, setSceneMedia] = useState<Record<number, SceneMedia>>({});
+  const [isMediaLoading, setIsMediaLoading] = useState(false);
+  const [isAudioPolling, setIsAudioPolling] = useState(false);
+  const [showImageAlternatives, setShowImageAlternatives] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const steps = [
-    { label: "20 min Dars", icon: Book },
-    { label: "5 min Tanaflus", icon: Coffee },
-    { label: "Savol-javob", icon: MessageCircle },
-    { label: "Interview", icon: Mic },
-    { label: "Xulosa", icon: FileText }
-  ];
+  useEffect(() => {
+    if (!isSpeaking) return;
+
+    const timer = window.setInterval(() => {
+      setElapsed((current) => Math.min(current + 1, 20 * 60));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [isSpeaking]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function generateLesson() {
+      setIsGenerating(true);
+      try {
+        const res = await fetch("/api/admin/generate-lesson", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: topic.title,
+            grade: topic.grade,
+            sourceText: buildSourceText(topic),
+          }),
+        });
+        const data = await res.json();
+        if (!cancelled) {
+          setLesson(data.lesson);
+          setProviderUsed(data.providerUsed ?? "unknown");
+          setActiveSceneIndex(0);
+        }
+      } catch {
+        if (!cancelled) {
+          setLesson(buildLocalLesson(topic));
+          setProviderUsed("local-fallback");
+        }
+      } finally {
+        if (!cancelled) setIsGenerating(false);
+      }
+    }
+
+    generateLesson();
+
+    return () => {
+      cancelled = true;
+      audioRef.current?.pause();
+      window.speechSynthesis?.cancel();
+    };
+  }, [topic]);
+
+  const lessonMinutes = 20;
+  const totalSeconds = lessonMinutes * 60;
+  const remainingSeconds = Math.max(totalSeconds - elapsed, 0);
+  const elapsedPercent = Math.round((elapsed / totalSeconds) * 100);
+  const displayTime = formatTime(remainingSeconds);
+
+  const sections = topic.lessonSections.length
+    ? topic.lessonSections
+    : [
+        {
+          id: "overview",
+          title: topic.title,
+          content: topic.description,
+        },
+      ];
+
+  const activeSection = sections[0];
+  const scenes = lesson?.scenes ?? [];
+  const activeScene = scenes[activeSceneIndex];
+  const teacherSpeech = buildTutorSpeech(topic.title, activeScene?.teacherSpeech || activeSection.content || topic.description);
+  const presentation = activeScene?.presentation;
+  const activeMedia = activeScene ? sceneMedia[activeScene.sceneId] : undefined;
+  const sceneProgress = scenes.length ? Math.round(((activeSceneIndex + 1) / scenes.length) * 100) : 0;
+  const isLastScene = scenes.length > 0 && activeSceneIndex >= scenes.length - 1;
+
+  const summaryPoints = useMemo(
+    () => (lesson ? buildLessonSummaryPoints(lesson) : buildSummaryPoints(topic)),
+    [lesson, topic],
+  );
+
+  function playServerAudio(audioUrl: string, onDone?: () => void) {
+    audioRef.current?.pause();
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    audio.onplay = () => setIsSpeaking(true);
+    audio.onended = () => {
+      setIsSpeaking(false);
+      onDone?.();
+    };
+    audio.onerror = () => {
+      setIsSpeaking(false);
+      onDone?.();
+    };
+    audio.play().catch(() => {
+      setIsSpeaking(false);
+      onDone?.();
+    });
+  }
+
+  function speakBrowser(text: string, onDone?: () => void) {
+    if (!("speechSynthesis" in window)) { onDone?.(); return; }
+    window.speechSynthesis.cancel();
+    const voice = pickBestVoice(window.speechSynthesis.getVoices());
+    const chunks = splitSpeechIntoChunks(normalizeSpeechTextForTemplate(text));
+    let chunkIndex = 0;
+
+    function speakNextChunk() {
+      const chunk = chunks[chunkIndex];
+      if (!chunk) {
+        setIsSpeaking(false);
+        onDone?.();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      if (voice) utterance.voice = voice;
+      utterance.lang = voice?.lang || "uz-UZ";
+      utterance.rate = getBrowserSpeechRate(voice);
+      utterance.pitch = 0.96;
+      utterance.volume = 1;
+      utterance.onend = () => {
+        chunkIndex += 1;
+        window.setTimeout(speakNextChunk, 180);
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        onDone?.();
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+
+    setIsSpeaking(true);
+    speakNextChunk();
+  }
+
+  function speakText(text = teacherSpeech, onDone?: () => void, audioUrl?: string | null) {
+    if (audioUrl) { playServerAudio(audioUrl, onDone); return; }
+    speakBrowser(text, onDone);
+  }
+
+  /** Poll /api/media/tts/status/[jobId] every 2s until audio is ready */
+  function startPollingAudio(jobId: string, sceneId: number, fallbackText: string, onReady: (url: string) => void) {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    setIsAudioPolling(true);
+
+    const MAX_POLLS = 45; // 90 seconds max
+    let count = 0;
+
+    pollTimerRef.current = setInterval(async () => {
+      count++;
+      try {
+        const res = await fetch(`/api/media/tts/status/${jobId}`);
+        const data = await res.json();
+
+        if (data.status === "completed" && data.audioUrl) {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setIsAudioPolling(false);
+          // Update scene media with completed audio
+          setSceneMedia((prev) => ({
+            ...prev,
+            [sceneId]: {
+              ...prev[sceneId],
+              audio: {
+                ...(prev[sceneId]?.audio as SceneAudio),
+                status: "completed",
+                audioUrl: data.audioUrl,
+                mode: "server_audio",
+              },
+            },
+          }));
+          onReady(data.audioUrl);
+        } else if (data.status === "failed" || count >= MAX_POLLS) {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setIsAudioPolling(false);
+          speakBrowser(fallbackText, () => setShowCheckPrompt(true));
+        }
+      } catch {
+        if (count >= MAX_POLLS) {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setIsAudioPolling(false);
+          speakBrowser(fallbackText, () => setShowCheckPrompt(true));
+        }
+      }
+    }, 2000);
+  }
+
+  function speakCurrentScene() {
+    setShowCheckPrompt(false);
+    setAnswer("");
+
+    const audio = activeMedia?.audio;
+    const text = audio?.finalText || teacherSpeech;
+
+    // Already have a server audio URL — play it
+    if (audio?.audioUrl) {
+      speakText(text, () => setShowCheckPrompt(true), audio.audioUrl);
+      return;
+    }
+
+    // Async job in progress — start polling
+    if (audio?.mode === "async_audio" && audio?.jobId) {
+      startPollingAudio(audio.jobId, activeScene?.sceneId ?? 0, text, (url) => {
+        speakText(text, () => setShowCheckPrompt(true), url);
+      });
+      return;
+    }
+
+    // Browser fallback
+    speakBrowser(text, () => setShowCheckPrompt(true));
+  }
+
+  function stopSpeaking() {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+  }
+
+  function goToNextScene() {
+    setAnswer("");
+    setQuestion("");
+    setShowCheckPrompt(false);
+    setShowImageAlternatives(null);
+    if (isLastScene) {
+      setLessonCompleted(true);
+      return;
+    }
+    setActiveSceneIndex((current) => Math.min(current + 1, Math.max(scenes.length - 1, 0)));
+  }
+
+  async function askLessonQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion) return;
+
+    stopSpeaking();
+    setIsAsking(true);
+    setAnswer("");
+
+    try {
+      const res = await fetch("/api/lesson/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lessonId: lesson?.id || topic.id,
+          sceneId: activeScene?.sceneId ?? activeSceneIndex + 1,
+          topic: topic.title,
+          question: trimmedQuestion,
+          currentSceneContext: teacherSpeech,
+          studentLevel: "normal",
+        }),
+      });
+      const data = await res.json();
+      const nextAnswer = data.answer ?? "Javob tayyor bo'lmadi. Darsni davom ettiramiz.";
+      setAnswer(nextAnswer);
+      setQuestion("");
+      speakText(nextAnswer);
+    } catch {
+      const fallback = "Hozir AI javob bera olmadi. Lekin darsni shu joydan davom ettirish mumkin.";
+      setAnswer(fallback);
+      speakText(fallback);
+    } finally {
+      setIsAsking(false);
+    }
+  }
+
+  function selectAlternativeImage(sceneId: number, selectedImage: ImageSearchResult) {
+    setSceneMedia((current) => {
+      const currentMedia = current[sceneId];
+      const image = currentMedia?.image;
+      if (!image?.selectedImage) return current;
+
+      const nextAlternatives = [image.selectedImage, ...(image.alternatives || [])]
+        .filter((item) => item.id !== selectedImage.id)
+        .slice(0, 6);
+
+      return {
+        ...current,
+        [sceneId]: {
+          ...currentMedia,
+          image: {
+            ...image,
+            imageUrl: selectedImage.imageUrl,
+            selectedImage,
+            alternatives: nextAlternatives,
+          },
+        },
+      };
+    });
+    setShowImageAlternatives(null);
+  }
+
+  // Stop polling when component unmounts or scene changes
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [activeSceneIndex]);
+
+  useEffect(() => {
+    if (isGenerating || !lesson || !teacherSpeech || lessonCompleted) return;
+    if (activeScene && !sceneMedia[activeScene.sceneId]) return;
+
+    const timeout = window.setTimeout(() => {
+      if (!answer) speakCurrentScene();
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.speechSynthesis?.cancel();
+      setIsSpeaking(false);
+    };
+  }, [activeSceneIndex, activeScene, isGenerating, lesson, lessonCompleted, sceneMedia]);
+
+  useEffect(() => {
+    if (!lesson || !activeScene || sceneMedia[activeScene.sceneId]) return;
+
+    let cancelled = false;
+    const currentLessonId = lesson.id;
+    const currentScene = activeScene;
+
+    async function generateMedia() {
+      setIsMediaLoading(true);
+      try {
+        const [audioRes, imageRes] = await Promise.all([
+          fetch("/api/media/tts/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lessonId: currentLessonId,
+              sceneId: currentScene.sceneId,
+              text: currentScene.teacherSpeech,
+            }),
+          }),
+          fetch("/api/media/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lessonId: currentLessonId,
+              sceneId: currentScene.sceneId,
+              topic: topic.title,
+              sceneTitle: currentScene.presentation?.title || topic.title,
+              prompt: currentScene.presentation?.imagePrompt || currentScene.presentation?.title || topic.title,
+              title: currentScene.presentation?.title || topic.title,
+              visualType: currentScene.presentation?.type || "presentation",
+              description: currentScene.presentation?.description || topic.description,
+            }),
+          }),
+        ]);
+        const rawAudio = await audioRes.json();
+        const image = await imageRes.json();
+        if (!cancelled) {
+          const normalizedImage = image
+            ? {
+                providerUsed: image.providerUsed ?? image.selectedImage?.provider ?? "placeholder",
+                imageUrl: image.imageUrl ?? image.selectedImage?.imageUrl ?? "",
+                prompt: image.prompt ?? "",
+                selectedImage: image.selectedImage,
+                alternatives: image.alternatives ?? [],
+                warning: image.warning,
+              }
+            : undefined;
+
+          const normalizedMedia: SceneMedia = {
+            sceneId: currentScene.sceneId,
+            audio: {
+              providerUsed: rawAudio.providerUsed ?? "browser_fallback",
+              audioUrl: rawAudio.audioUrl ?? null,
+              mode: rawAudio.mode ?? "browser_fallback",
+              finalText: rawAudio.finalText ?? currentScene.teacherSpeech ?? "",
+              jobId: rawAudio.jobId,
+              status: rawAudio.status ?? "fallback",
+            },
+            image: normalizedImage,
+          };
+          setSceneMedia((current) => ({
+            ...current,
+            [normalizedMedia.sceneId]: normalizedMedia,
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setSceneMedia((current) => ({
+            ...current,
+            [currentScene.sceneId]: { sceneId: currentScene.sceneId },
+          }));
+        }
+      } finally {
+        if (!cancelled) setIsMediaLoading(false);
+      }
+    }
+
+    generateMedia();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeScene, lesson, sceneMedia, topic.description, topic.title]);
+
+  useEffect(() => {
+    if (!showCheckPrompt || question.trim() || answer || isAsking || lessonCompleted) return;
+
+    const timeout = window.setTimeout(() => {
+      goToNextScene();
+    }, 6500);
+
+    return () => window.clearTimeout(timeout);
+  }, [answer, isAsking, lessonCompleted, question, showCheckPrompt]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-gradient-to-br from-slate-900 via-[#0a1628] to-[#0f172a] text-slate-300 overflow-y-auto font-sans">
-      
-      {/* 1. Top Navigation Bar */}
-      <nav className="sticky top-0 h-16 bg-[#0f172a]/80 backdrop-blur-md border-b border-cyan-500/20 z-50 px-6 flex items-center justify-between">
-        {/* Left */}
-        <div className="flex items-center gap-3">
-          <Link href="/darsliklar" className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 hover:scale-105 transition-transform">
-            <Compass className="w-6 h-6" />
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#0a0e1a] text-slate-300 antialiased lg:overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_top_left,rgba(124,58,237,0.18),transparent_32%),radial-gradient(circle_at_70%_0%,rgba(16,185,129,0.09),transparent_28%),linear-gradient(135deg,#0a0e1a_0%,#111827_48%,#070a13_100%)]" />
+
+      <header className="sticky top-0 z-50 h-14 border-b border-slate-800 bg-[#0a0e1a]/82 backdrop-blur-xl">
+        <div className="flex h-full items-center justify-between gap-3 px-4">
+          <Link
+            href="/darsliklar"
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-slate-700 bg-slate-800/60 px-3 text-sm font-semibold text-slate-200 transition hover:border-purple-400/60 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Orqaga
           </Link>
-          <span className="font-bold text-xl text-white tracking-wide">Tarixchi AI</span>
-        </div>
 
-        {/* Center */}
-        <div className="flex items-center gap-4 bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700/50">
-          <Hourglass className="w-4 h-4 text-cyan-400 animate-pulse" />
-          <span className="text-white font-semibold tracking-wider text-sm">08:42 qoldi</span>
-          <button className="text-slate-400 hover:text-white transition-colors">
-            <Pause className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Right */}
-        <div className="flex items-center gap-6 text-sm font-semibold">
-          <div className="flex items-center gap-2 group">
-            <Zap className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
-            <span className="text-white">2,450 XP</span>
-            <span className="text-emerald-400 text-xs">+120</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Flame className="w-5 h-5 text-orange-500" />
-            <span className="text-white">7 kun</span>
-            <span className="text-slate-500 text-xs uppercase tracking-wider">Seriya</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-amber-300" />
-            <span className="text-white">Oltin Liga</span>
-            <span className="text-slate-500 text-xs">Top 12%</span>
-          </div>
-          <div className="flex items-center gap-2 pl-4 border-l border-slate-700">
-            <Users className="w-5 h-5 text-cyan-400" />
-            <span className="text-white hidden sm:inline">Do'stlar reytingi</span>
-            <span className="text-emerald-400 text-xs">+24</span>
-          </div>
-        </div>
-      </nav>
-
-      {/* 2. Main Content Area */}
-      <div className="max-w-[1440px] mx-auto p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
-        {/* Left Column: AI Tutor Panel (1/4 width) */}
-        <div className="lg:col-span-1 flex flex-col gap-6">
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl border border-teal-500/30 p-6 flex-grow flex flex-col items-center text-center relative overflow-hidden shadow-lg shadow-cyan-500/5 group hover:-translate-y-1 transition-all duration-300">
-            
-            {/* AI Speech Bubble */}
-            <div className="bg-[#0f172a] border border-cyan-500/30 rounded-2xl p-4 mb-6 relative w-full shadow-lg">
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#0f172a] border-b border-r border-cyan-500/30 transform rotate-45"></div>
-              <h3 className="text-white font-bold text-lg mb-1">Salom! 👋</h3>
-              <p className="text-slate-300 text-sm leading-relaxed mb-3">
-                Bugun <strong>{topic.title}</strong> mavzusini o'rganamiz. Bu harakat Turkiston tarixida burilish yasagan.
-              </p>
-              <p className="text-cyan-400 font-semibold text-sm">Boshlaymizmi?</p>
-            </div>
-
-            {/* AI Character Placeholder */}
-            <div className="w-32 h-32 bg-slate-700/50 rounded-full flex items-center justify-center mb-6 relative group-hover:scale-105 transition-transform animate-[pulse_4s_ease-in-out_infinite]">
-               <div className="absolute inset-0 rounded-full border-2 border-cyan-500/30 animate-[spin_10s_linear_infinite]"></div>
-               <Users className="w-16 h-16 text-cyan-400 opacity-80" />
-               <div className="absolute -bottom-2 -right-2 bg-slate-800 p-2 rounded-lg border border-slate-600">
-                 <Book className="w-4 h-4 text-amber-400" />
-               </div>
-            </div>
-
-            {/* Controls */}
-            <div className="w-full space-y-3 mt-auto">
-              <div className="grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-slate-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors border border-slate-600">
-                  <Pause className="w-4 h-4 text-slate-400" /> Pauza
-                </button>
-                <button className="flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-slate-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors border border-slate-600">
-                  <HelpCircle className="w-4 h-4 text-cyan-400" /> Savol ber
-                </button>
-              </div>
-              <button className="w-full flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-slate-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors border border-slate-600">
-                <Sparkles className="w-4 h-4 text-amber-400" /> Oddiyroq tushuntir
-              </button>
-              <button className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white py-4 rounded-xl font-bold shadow-lg shadow-cyan-500/20 hover:scale-[1.02] transition-all">
-                Davom et <ArrowRight className="w-5 h-5" />
-              </button>
+          <div className="min-w-0 text-center">
+            <h1 className="truncate text-base font-extrabold text-white sm:text-xl">
+              {topic.title}
+            </h1>
+            <div className="mt-0.5 flex items-center justify-center gap-2 text-xs font-medium text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
+              {lessonCompleted ? "Dars tugadi" : "Dars davom etmoqda"}
             </div>
           </div>
 
-          {/* Bottom Progress */}
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-2xl border border-slate-700/50 p-4">
-            <div className="flex justify-between relative">
-              <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-slate-700 -translate-y-1/2 z-0"></div>
-              {steps.map((step, idx) => {
-                const Icon = step.icon;
-                const isActive = idx === activeStep;
-                const isPassed = idx < activeStep;
+          <div className="hidden min-w-[92px] text-right text-xs font-semibold text-slate-400 sm:block">
+            {scenes.length ? `${activeSceneIndex + 1}/${scenes.length}` : "0/0"}
+          </div>
+        </div>
+      </header>
+
+      {isGenerating && (
+        <div className="relative z-40 mx-auto mt-6 flex max-w-xl items-center gap-4 rounded-2xl border border-purple-400/30 bg-slate-900/90 p-5 text-slate-100 shadow-2xl shadow-purple-950/30">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-300" />
+          <div>
+            <div className="text-lg font-black text-white">Dars tayyorlanmoqda...</div>
+            <p className="mt-1 text-sm text-slate-400">AI mavzuni sahnalarga ajratib, o'qituvchi matnini yozmoqda.</p>
+          </div>
+        </div>
+      )}
+
+      <main className="relative mx-auto grid max-w-[1440px] gap-3 px-3 py-3 sm:px-4 lg:h-[calc(100vh-56px)] lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="space-y-3 lg:self-start">
+          <section className="rounded-xl border border-violet-500/25 bg-[#13182c]/90 p-3 shadow-2xl shadow-purple-950/20 backdrop-blur-sm">
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+              <Sparkles className="h-4 w-4 text-purple-300" />
+              AI o'qituvchi
+            </div>
+
+            <div className="flex flex-col items-center">
+              <TutorAvatar />
+              <VoiceWave />
+            </div>
+
+            <div className="mt-2 max-h-28 overflow-hidden rounded-lg border border-slate-700/70 bg-slate-800/60 p-3 text-xs leading-relaxed text-slate-200">
+              {isGenerating
+                ? "Bir oz kuting, dars matni tayyorlanmoqda."
+                : teacherSpeech.slice(0, 260)}
+              {!isGenerating && teacherSpeech.length > 260 ? "..." : ""}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-violet-500/20 bg-[#13182c]/90 p-3 shadow-xl shadow-purple-950/10">
+            <button
+              onClick={() => setIsPlanOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-2 text-left text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400"
+            >
+              <span className="inline-flex items-center gap-2">
+                <ChevronRight className="h-4 w-4 text-purple-300" />
+                Dars rejasi
+              </span>
+              <ChevronDown className={`h-4 w-4 transition ${isPlanOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {isPlanOpen && (
+            <div className="relative mt-3 space-y-2">
+              <div className="absolute left-4 top-7 bottom-7 w-px bg-gradient-to-b from-purple-500 via-slate-700 to-slate-800" />
+              {lessonPlan.map((item, index) => {
+                const Icon = item.icon;
+                const active = !lessonCompleted && index === 0;
+
                 return (
-                  <div key={idx} className="relative z-10 flex flex-col items-center group cursor-pointer" onClick={() => setActiveStep(idx)}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors duration-300 ${isActive || isPassed ? "bg-slate-900 border-cyan-400" : "bg-slate-800 border-slate-600"}`}>
-                      <Icon className={`w-4 h-4 ${isActive || isPassed ? "text-cyan-400" : "text-slate-500"}`} />
-                    </div>
-                    <div className="absolute -bottom-6 opacity-0 group-hover:opacity-100 whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold text-cyan-400 transition-opacity">
-                      {step.label}
-                    </div>
-                  </div>
-                )
+                  <button
+                    key={item.title}
+                    className={`relative grid w-full grid-cols-[32px_minmax(0,1fr)] items-center gap-2 rounded-xl p-2 text-left transition focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                      active
+                        ? "border border-purple-500/25 bg-purple-500/10 shadow-lg shadow-purple-500/10"
+                        : "hover:bg-slate-800/55"
+                    }`}
+                  >
+                    <span
+                      className={`relative z-10 grid h-8 w-8 place-items-center rounded-full border ${
+                        active
+                          ? "border-purple-300 bg-gradient-to-br from-purple-500 to-violet-600 text-white shadow-[0_0_22px_rgba(168,85,247,0.45)]"
+                          : "border-slate-700 bg-slate-900 text-slate-500"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className={`block truncate text-xs font-bold ${active ? "text-white" : "text-slate-400"}`}>
+                        {item.title}
+                      </span>
+                      <span className={`mt-0.5 block text-[10px] ${active ? "text-emerald-400" : "text-slate-500"}`}>
+                        {active ? "Jarayonda" : item.time}
+                      </span>
+                    </span>
+                  </button>
+                );
               })}
             </div>
-          </div>
-        </div>
+            )}
+          </section>
 
-        {/* Center Column: Lesson Content (2/4 width) */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl border border-cyan-500/20 p-6 flex-grow flex flex-col shadow-lg shadow-cyan-500/5 relative overflow-hidden">
-             
-             {/* Carousel Nav */}
-             <div className="flex justify-between items-center mb-6">
-               <button onClick={() => setSlide(s => Math.max(0, s - 1))} className="w-10 h-10 rounded-full bg-slate-700/50 hover:bg-slate-600 flex items-center justify-center text-white border border-slate-600 transition-colors">
-                 <ChevronLeft className="w-5 h-5" />
-               </button>
-               <h2 className="text-xl font-bold text-white tracking-wide">
-                 {slide === 0 ? "Turkiston xaritasi (XIX–XX asr boshlarida)" : slide === 1 ? "Jadid ma'rifatparvarlari" : "Jadidchilik harakati: muhim bosqichlar"}
-               </h2>
-               <button onClick={() => setSlide(s => Math.min(2, s + 1))} className="w-10 h-10 rounded-full bg-slate-700/50 hover:bg-slate-600 flex items-center justify-center text-white border border-slate-600 transition-colors">
-                 <ChevronRight className="w-5 h-5" />
-               </button>
-             </div>
-
-             {/* Slide 1: Map */}
-             {slide === 0 && (
-               <div className="flex-grow bg-[#0a1220] rounded-2xl border border-slate-700/50 relative overflow-hidden group">
-                 <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/aged-paper.png')] mix-blend-overlay"></div>
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <Globe className="w-32 h-32 text-cyan-900/50 group-hover:scale-110 transition-transform duration-700" />
-                 </div>
-                 <div className="absolute inset-0 p-8">
-                   <div className="w-3 h-3 bg-rose-500 rounded-full absolute top-1/3 left-1/3 shadow-[0_0_15px_rgba(244,63,94,0.8)]"><span className="absolute -bottom-6 -left-4 text-xs font-bold text-slate-300">Buxoro</span></div>
-                   <div className="w-3 h-3 bg-cyan-500 rounded-full absolute top-1/4 right-1/3 shadow-[0_0_15px_rgba(6,182,212,0.8)]"><span className="absolute -bottom-6 -left-4 text-xs font-bold text-slate-300">Toshkent</span></div>
-                   <div className="w-3 h-3 bg-emerald-500 rounded-full absolute top-1/2 left-1/2 shadow-[0_0_15px_rgba(16,185,129,0.8)]"><span className="absolute -bottom-6 -left-4 text-xs font-bold text-slate-300">Samarqand</span></div>
-                   <div className="w-3 h-3 bg-amber-500 rounded-full absolute top-1/3 right-1/4 shadow-[0_0_15px_rgba(245,158,11,0.8)]"><span className="absolute -bottom-6 -left-4 text-xs font-bold text-slate-300">Qo'qon</span></div>
-                 </div>
-                 <div className="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur px-4 py-2 rounded-lg border border-slate-700 text-xs text-slate-400">
-                   *Vintage style map placeholder
-                 </div>
-               </div>
-             )}
-
-             {/* Slide 2: Figures */}
-             {slide === 1 && (
-               <div className="flex-grow grid grid-cols-3 gap-4 items-center">
-                 {[
-                   { name: "Mahmudxo'ja Behbudiy", years: "1875–1919" },
-                   { name: "Abdulla Avloniy", years: "1878–1934" },
-                   { name: "Munavvarqori", years: "1878–1931" }
-                 ].map((figure, idx) => (
-                   <div key={idx} className="bg-slate-800/50 rounded-2xl border border-slate-700 p-4 text-center hover:-translate-y-2 transition-transform duration-300 cursor-pointer group h-full flex flex-col">
-                     <div className="w-full aspect-square bg-[#1a2333] rounded-xl mb-4 overflow-hidden relative border border-slate-600/50 group-hover:border-cyan-500/50 transition-colors">
-                       <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent z-10"></div>
-                       <UserPlaceholder />
-                     </div>
-                     <h4 className="text-white font-bold text-sm leading-tight mb-1 mt-auto">{figure.name}</h4>
-                     <p className="text-slate-500 text-xs font-mono">{figure.years}</p>
-                   </div>
-                 ))}
-               </div>
-             )}
-
-             {/* Slide 3: Timeline */}
-             {slide === 2 && (
-               <div className="flex-grow flex flex-col justify-center px-4 relative">
-                 <div className="absolute left-6 right-6 top-1/2 h-1 bg-gradient-to-r from-cyan-500 via-teal-500 to-slate-700 -translate-y-1/2 rounded-full"></div>
-                 <div className="flex justify-between relative z-10">
-                   {[
-                     { year: "1880–1890", text: "Yangi usul maktablari" },
-                     { year: "1905–1917", text: "Matbuot va teatr" },
-                     { year: "1917–1918", text: "Milliy uyg'onish" },
-                     { year: "1918–1924", text: "Jadid kayfiyati" }
-                   ].map((node, idx) => (
-                     <div key={idx} className="flex flex-col items-center w-24 text-center group">
-                       <div className="text-xs font-bold text-cyan-400 mb-4 bg-slate-900 px-2 py-1 rounded-md border border-cyan-900">{node.year}</div>
-                       <div className={`w-5 h-5 rounded-full border-4 mb-4 transition-all duration-300 ${idx < 3 ? 'bg-cyan-500 border-slate-900 shadow-[0_0_15px_rgba(6,182,212,0.6)] animate-pulse' : 'bg-slate-900 border-slate-600'}`}></div>
-                       <div className="text-xs text-slate-300 font-medium">{node.text}</div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
-             )}
-
-             {/* Pagination Dots */}
-             <div className="flex justify-center gap-2 mt-8">
-               {[0, 1, 2].map(i => (
-                 <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i === slide ? "bg-cyan-400" : "bg-slate-600"}`} />
-               ))}
-               <div className="w-2 h-2 rounded-full bg-slate-800" />
-               <div className="w-2 h-2 rounded-full bg-slate-800" />
-               <div className="w-2 h-2 rounded-full bg-slate-800" />
-             </div>
-          </div>
-
-          {/* Bottom Cards Row */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-slate-800/40 rounded-2xl border border-slate-700/50 p-4 hover:-translate-y-1 hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/5 transition-all group cursor-pointer">
-              <div className="h-24 bg-[#1a2333] rounded-xl mb-3 flex items-center justify-center border border-slate-700 group-hover:border-cyan-500/30 overflow-hidden relative">
-                <FileText className="w-8 h-8 text-amber-100/20" />
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/lined-paper.png')] opacity-10 mix-blend-overlay"></div>
-                <div className="absolute bottom-2 right-2 text-[10px] font-bold text-slate-500">1913</div>
-              </div>
-              <h4 className="text-white font-bold text-sm mb-1">"Turon" gazetasi</h4>
-              <p className="text-slate-400 text-xs leading-relaxed">Jadidlar matbuot orqali xalqni ma'rifatga chaqirgan.</p>
+          <section className="rounded-xl border border-slate-700/80 bg-slate-800/40 p-3">
+            <div className="mb-2 flex items-end justify-between">
+              <span className="text-xs font-medium text-slate-400">Progress</span>
+              <span className="text-xl font-black text-white">{lessonCompleted ? 100 : sceneProgress}%</span>
             </div>
-            
-            <div className="bg-slate-800/40 rounded-2xl border border-slate-700/50 p-4 hover:-translate-y-1 hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/5 transition-all group cursor-pointer">
-              <div className="h-24 bg-[#1a2333] rounded-xl mb-3 flex items-center justify-center border border-slate-700 relative group-hover:border-cyan-500/30 overflow-hidden">
-                <Users className="w-12 h-12 text-slate-700" />
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <div className="w-10 h-10 bg-cyan-500/90 rounded-full flex items-center justify-center text-white backdrop-blur group-hover:scale-110 transition-transform">
-                    <Play className="w-4 h-4 ml-1" />
-                  </div>
-                </div>
-                <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-bold text-white">06:45</div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-900">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-500 transition-all duration-1000"
+                style={{ width: `${lessonCompleted ? 100 : sceneProgress}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-[11px] font-medium text-slate-300">
+              <Star className="h-3.5 w-3.5 text-yellow-300" />
+              {lessonCompleted ? "Muvaffaqiyatli tugadi" : "Slaydlar ketma-ket o'qiladi"}
+            </div>
+          </section>
+        </aside>
+
+        <section className="min-w-0 space-y-2 lg:flex lg:min-h-0 lg:flex-col">
+          <article className="group overflow-hidden rounded-xl border border-slate-700/60 bg-[#1a1625] shadow-2xl shadow-purple-950/30 transition hover:shadow-purple-900/30 lg:min-h-0 lg:flex-1">
+            <div className="relative min-h-[330px] overflow-hidden bg-[#d8be86] text-[#24170e] lg:h-full lg:min-h-0">
+              <PresentationVisual
+                topicId={topic.id}
+                sceneId={activeScene?.sceneId ?? activeSceneIndex + 1}
+                imageUrl={activeMedia?.image?.imageUrl}
+                isLoading={isMediaLoading}
+                title={presentation?.title || topic.title}
+                caption={presentation?.caption || presentation?.description || topic.description}
+              />
+
+              <div className="absolute right-3 top-3 rounded-full bg-slate-950/85 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+                {scenes.length ? `${activeSceneIndex + 1} / ${scenes.length}` : "1 / 1"}
               </div>
-              <h4 className="text-white font-bold text-sm mb-1">Jadid maktabi darsi</h4>
-              <p className="text-slate-400 text-xs leading-relaxed">Yangi usul maktablari – zamon talabiga javob bergan ta'lim.</p>
             </div>
 
-            <div className="bg-slate-800/40 rounded-2xl border border-slate-700/50 p-4 hover:-translate-y-1 hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/5 transition-all group cursor-pointer">
-              <div className="h-24 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl mb-3 flex items-center justify-center border border-slate-700 group-hover:border-cyan-500/30 relative">
-                <Book className="w-10 h-10 text-emerald-400/50" />
-                <Lightbulb className="w-4 h-4 text-amber-400 absolute top-4 left-4 animate-bounce" />
-                <GraduationCap className="w-5 h-5 text-indigo-400 absolute bottom-4 right-4" />
-              </div>
-              <h4 className="text-white font-bold text-sm mb-1">Jadidchilik maqsadi</h4>
-              <p className="text-slate-400 text-xs leading-relaxed">Ta'lim, taraqqiyot, milliy ong va islohotlar.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Notes & Study Panel (1/4 width) */}
-        <div className="lg:col-span-1 flex flex-col gap-6">
-          <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl border border-teal-500/30 p-6 flex-grow shadow-lg shadow-cyan-500/5 flex flex-col hover:-translate-y-1 transition-transform duration-300">
-            
-            <div className="flex items-center justify-between mb-6 border-b border-slate-700/50 pb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-cyan-400" /> AI qaydlari
-              </h2>
-              <button className="text-slate-400 hover:text-cyan-400 transition-colors">
-                <Edit3 className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-6 flex-grow overflow-y-auto pr-2 custom-scrollbar">
-              {/* Asosiy xulosalar */}
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Asosiy xulosalar</h3>
-                <ul className="space-y-3">
-                  <li className="flex items-start gap-3 text-sm text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    <span>Jadidlar ta'lim orqali millatni uyg'otmoqchi bo'lishgan.</span>
-                  </li>
-                  <li className="flex items-start gap-3 text-sm text-slate-300">
-                    <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                    <span>Ular yangi usul (tovushli) maktablar ochishgan.</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Imtihon eslatmasi */}
-              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Qisqa imtihon eslatmasi</h3>
-                <p className="text-sm text-slate-300">Mahmudxo'ja Behbudiy harakat yetakchilaridan biri va "Padarkush" dramasi muallifi hisoblanadi.</p>
-              </div>
-
-              {/* Muhim nuqtalar */}
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Muhim nuqtalar</h3>
-                <div className="space-y-2">
-                  {['Yangi usul maktablari', 'Matbuot va adabiyot', 'Islohot va taraqqiyot', 'Milliy uyg\'onish'].map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/50">
-                      <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                      </div>
-                      <span className="text-sm text-slate-200">{item}</span>
+            <div className="border-t border-slate-800/80 bg-slate-950/55 px-3 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0 flex-1 text-[11px] text-slate-300">
+                  {activeMedia?.image?.selectedImage ? (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="block truncate">{formatAttribution(activeMedia.image.selectedImage)}</span>
+                      {activeMedia.image.selectedImage.sourceUrl ? (
+                        <a
+                          href={activeMedia.image.selectedImage.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] font-semibold text-purple-300 hover:text-purple-200"
+                        >
+                          Manba
+                        </a>
+                      ) : null}
                     </div>
+                  ) : (
+                    <span className="block truncate text-slate-500">Rasm manbasi tayyorlanmoqda</span>
+                  )}
+                </div>
+                {activeMedia?.image?.alternatives?.length ? (
+                  <button
+                    onClick={() =>
+                      setShowImageAlternatives((current) =>
+                        current === (activeScene?.sceneId ?? 0) ? null : (activeScene?.sceneId ?? 0),
+                      )
+                    }
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-700 px-3 text-[11px] font-semibold text-slate-200 transition hover:border-purple-300 hover:text-white"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Boshqa rasm tanlash
+                  </button>
+                ) : null}
+              </div>
+
+              {showImageAlternatives === activeScene?.sceneId && activeMedia?.image?.alternatives?.length ? (
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {activeMedia.image.alternatives.map((alternative) => (
+                    <button
+                      key={alternative.id}
+                      onClick={() => selectAlternativeImage(activeScene.sceneId, alternative)}
+                      className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900/60 text-left transition hover:border-purple-300"
+                    >
+                      <div className="aspect-[16/9] overflow-hidden bg-slate-900">
+                        <img
+                          src={alternative.thumbnailUrl || alternative.imageUrl}
+                          alt={alternative.title}
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <div className="p-2">
+                        <div className="line-clamp-1 text-[11px] font-semibold text-white">{alternative.title}</div>
+                        <div className="mt-0.5 text-[10px] text-slate-400">
+                          {alternative.creator || alternative.provider}
+                        </div>
+                      </div>
+                    </button>
                   ))}
                 </div>
-              </div>
+              ) : null}
             </div>
+          </article>
 
-            {/* Action Buttons */}
-            <div className="space-y-2 mt-6 pt-6 border-t border-slate-700/50">
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30 transition-colors font-medium text-sm group">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Bookmark className="w-4 h-4" />
-                </div>
-                Flashcard qilish
-              </button>
-              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-teal-500/20 to-emerald-500/20 border border-teal-500/30 text-teal-300 hover:bg-teal-500/30 transition-colors font-medium text-sm group">
-                <div className="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="w-4 h-4" />
-                </div>
-                Testga aylantirish
-              </button>
-            </div>
-
-            {/* Bottom Input & Progress */}
-            <div className="mt-6 pt-6 border-t border-slate-700/50">
-              <div className="relative mb-6">
-                <textarea 
-                  value={noteInput}
-                  onChange={e => setNoteInput(e.target.value)}
-                  placeholder="Bugungi dars haqida o'z fikringni yoz..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 resize-none h-20 placeholder:text-slate-500"
-                ></textarea>
-                <button className="absolute bottom-3 right-3 w-8 h-8 bg-cyan-600 rounded-lg flex items-center justify-center text-white hover:bg-cyan-500 transition-colors">
-                  <Send className="w-4 h-4 -ml-0.5" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
-                {/* SVG Progress Ring */}
-                <div className="relative w-12 h-12 shrink-0">
-                  <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="16" fill="none" className="stroke-slate-700" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="16" fill="none" className="stroke-cyan-400 drop-shadow-[0_0_3px_rgba(34,211,238,0.8)]" strokeWidth="3" strokeDasharray="100" strokeDashoffset="30" strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xs font-bold text-white">70%</span>
+          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_170px]">
+            <div className="rounded-lg border border-violet-500/20 bg-[#13182c]/90 p-2.5 shadow-xl shadow-purple-950/10">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={isSpeaking ? stopSpeaking : () => speakCurrentScene()}
+                    disabled={lessonCompleted || isAudioPolling}
+                    className="grid h-9 w-9 place-items-center rounded-full border border-slate-600 text-slate-200 transition hover:border-purple-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    aria-label={isSpeaking ? "Ovozni to'xtatish" : "Darsni ovozda o'qish"}
+                  >
+                    {isSpeaking ? <Pause className="h-4 w-4" /> : isAudioPolling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                  </button>
+                  <button
+                    onClick={speakCurrentScene}
+                    disabled={lessonCompleted || isAudioPolling}
+                    className="grid h-9 w-9 place-items-center rounded-full border border-slate-600 text-slate-200 transition hover:border-purple-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    aria-label="Sahnani qayta eshitish"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                  <div>
+                    <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      {isAudioPolling ? "Ovoz tayyorlanmoqda..." : "Dars vaqti"}
+                    </div>
+                    <div className="mt-0.5 flex items-end gap-1.5">
+                      {isAudioPolling ? (
+                        <span className="text-sm font-bold tabular-nums text-purple-300 animate-pulse">O'zbek audio...</span>
+                      ) : (
+                        <>
+                          <span className="text-xl font-black tabular-nums text-white">{displayTime}</span>
+                          <span className="pb-0.5 text-[11px] text-slate-500">/ {lessonMinutes}:00</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-white">O'zlashtirish</div>
-                  <div className="text-xs text-slate-400">darajangiz oshdi</div>
-                </div>
+                <button
+                  onClick={goToNextScene}
+                  disabled={!scenes.length || lessonCompleted}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-purple-500/50 px-3 text-xs font-bold text-purple-200 transition hover:bg-purple-500/10 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  {isLastScene ? "Yakunlash" : "Keyingi"}
+                </button>
+              </div>
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-900">
+                <div
+                  className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                  style={{ width: `${elapsedPercent}%` }}
+                />
               </div>
             </div>
 
+            <div className="rounded-lg border border-violet-500/20 bg-[#13182c]/90 p-2.5">
+              <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500">Hozirgi slayd</div>
+              <div className="mt-0.5 line-clamp-1 text-xs font-bold leading-snug text-white">
+                {presentation?.title || activeSection.title}
+              </div>
+              <div className="mt-0.5 text-[9px] font-semibold text-purple-200">
+                {activeMedia?.image?.providerUsed ? `Image: ${activeMedia.image.providerUsed}` : `Lesson: ${providerUsed}`}
+              </div>
+            </div>
           </div>
-        </div>
 
-      </div>
+          {!lessonCompleted && showCheckPrompt && (
+          <div className="rounded-xl border border-violet-500/20 bg-slate-800/50 p-3">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-yellow-400/15 text-yellow-300">
+                  <Lightbulb className="h-5 w-5" />
+                </span>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Tekshiruv</div>
+                  <p className="mt-1 text-sm font-semibold text-slate-100">
+                    Bu slaydni tushundingizmi? Savolingiz bo'lsa yozing, bo'lmasa dars avtomatik davom etadi.
+                  </p>
+                  {activeScene?.microQuestion?.question && (
+                    <p className="mt-1 text-xs text-slate-400">{activeScene.microQuestion.question}</p>
+                  )}
+                </div>
+              </div>
+              <form onSubmit={askLessonQuestion} className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-950/60 px-4 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-purple-400"
+                  placeholder="Dars bo'yicha savol yozing..."
+                />
+                <button
+                  disabled={isAsking || !question.trim()}
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-violet-600 px-6 text-sm font-bold text-white shadow-lg shadow-purple-600/25 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-purple-300"
+                >
+                  {isAsking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Savol berish
+                </button>
+              </form>
+              {answer && (
+                <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm leading-relaxed text-emerald-50">
+                  {answer}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => speakText(answer)}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-emerald-300/30 px-3 text-xs font-bold text-emerald-100"
+                    >
+                      <Volume2 className="h-4 w-4" />
+                      Javobni eshitish
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAnswer("");
+                        goToNextScene();
+                      }}
+                      className="inline-flex h-9 items-center gap-2 rounded-lg border border-purple-300/30 px-3 text-xs font-bold text-purple-100"
+                    >
+                      <Play className="h-4 w-4" />
+                      Darsni davom ettirish
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          )}
 
-      <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
-      `}} />
+          {lessonCompleted && (
+          <section className="rounded-xl border border-violet-500/20 bg-[#13182c]/90 p-4 shadow-2xl shadow-purple-950/20">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-200">
+                  <Check className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-lg font-black text-white">Muvaffaqiyatli tugatdingiz</h2>
+                  <p className="text-sm text-slate-500">AI notelar, sanalar va imtihon uchun eslatmalar tayyor</p>
+                </div>
+              </div>
+              <BookOpen className="hidden h-10 w-10 text-purple-300/70 md:block" />
+            </div>
+
+            <div className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-800">
+              {notesTabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`shrink-0 border-b-2 px-3 pb-3 text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-purple-400 ${
+                    activeTab === tab
+                      ? "border-purple-400 text-purple-200"
+                      : "border-transparent text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-3">
+                {summaryPoints.map((point) => (
+                  <div key={point} className="flex gap-3 rounded-xl bg-slate-900/35 p-3 text-sm leading-relaxed text-slate-300">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+                    <span>{point}</span>
+                  </div>
+                ))}
+              </div>
+              <ScrollIllustration />
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <ActionButton icon={Download} label="PDF yuklab olish" />
+              <ActionButton icon={BookOpen} label="Flashcard qilish" />
+              <ActionButton icon={RefreshCw} label="Testga aylantirish" />
+              <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-violet-600 px-4 text-sm font-bold text-white transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-300">
+                <Bookmark className="h-4 w-4" />
+                Saqlash
+              </button>
+            </div>
+          </section>
+          )}
+        </section>
+      </main>
+
+      <style jsx>{`
+        @keyframes floatTutor {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-7px); }
+        }
+
+        @keyframes wavePulse {
+          0%, 100% { transform: scaleY(0.35); opacity: 0.55; }
+          50% { transform: scaleY(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
 
-// Helper component for vintage portrait placeholder
-function UserPlaceholder() {
+function TutorAvatar() {
   return (
-    <svg className="absolute inset-0 w-full h-full text-slate-700/30" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
+    <div className="relative h-32 w-32" style={{ animation: "floatTutor 4s ease-in-out infinite" }}>
+      <div className="absolute inset-x-5 bottom-0 h-20 rounded-[1.5rem] bg-gradient-to-br from-cyan-300 to-teal-500 shadow-2xl shadow-purple-500/20" />
+      <div className="absolute left-1/2 top-1 h-20 w-20 -translate-x-1/2 rounded-full bg-[#f2c49e] shadow-lg">
+        <div className="absolute -top-2 left-3 right-3 h-8 rounded-t-full bg-[#2a1b14]" />
+        <div className="absolute left-4 top-9 h-2.5 w-2.5 rounded-full bg-slate-900" />
+        <div className="absolute right-4 top-9 h-2.5 w-2.5 rounded-full bg-slate-900" />
+        <div className="absolute left-2.5 top-8 h-7 w-7 rounded-full border-2 border-slate-700" />
+        <div className="absolute right-2.5 top-8 h-7 w-7 rounded-full border-2 border-slate-700" />
+        <div className="absolute left-[36px] top-[43px] h-0.5 w-5 bg-slate-700" />
+        <div className="absolute bottom-5 left-1/2 h-2 w-8 -translate-x-1/2 rounded-full border-b-2 border-rose-700" />
+      </div>
+      <div className="absolute bottom-5 left-9 h-12 w-9 rotate-[-18deg] rounded-full bg-cyan-300" />
+      <div className="absolute bottom-6 right-5 h-12 w-7 rotate-[28deg] rounded-full bg-cyan-300" />
+      <div className="absolute bottom-5 left-1/2 h-14 w-12 -translate-x-1/2 rounded-t-2xl bg-white" />
+      <div className="absolute bottom-11 left-1/2 h-9 w-3 -translate-x-1/2 bg-purple-500" />
+    </div>
   );
+}
+
+function VoiceWave() {
+  return (
+    <div className="mt-3 flex h-9 items-center gap-1.5">
+      {[0, 1, 2, 3, 4, 5, 6].map((bar) => (
+        <span
+          key={bar}
+          className="h-8 w-2 origin-center rounded-full bg-gradient-to-t from-purple-500 to-violet-300"
+          style={{
+            animation: "wavePulse 1.1s ease-in-out infinite",
+            animationDelay: `${bar * 0.08}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PresentationVisual({
+  topicId,
+  sceneId,
+  imageUrl,
+  isLoading,
+  title,
+  caption,
+}: {
+  topicId: string;
+  sceneId: number;
+  imageUrl?: string;
+  isLoading: boolean;
+  title: string;
+  caption: string;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const assetPath = imageUrl || `/lesson-assets/${topicId}/scene-${sceneId}.png`;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [assetPath]);
+
+  return (
+    <div className="relative h-full min-h-[330px] overflow-hidden bg-[#111827] shadow-inner">
+      {!imageFailed && (
+        <>
+          <img
+            src={assetPath}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110 object-cover opacity-25 blur-xl"
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(245,158,11,0.20),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.62),rgba(17,24,39,0.32),rgba(2,6,23,0.68))]" />
+          <div className="absolute inset-0 p-2 sm:p-3">
+            <img
+              src={assetPath}
+              alt={title}
+              onError={() => setImageFailed(true)}
+              className="h-full w-full rounded-lg object-contain drop-shadow-2xl"
+            />
+          </div>
+        </>
+      )}
+      {imageFailed && <VintageLessonArt topic={title} />}
+      {isLoading && (
+        <div className="absolute inset-0 grid place-items-center bg-slate-950/50 text-white backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-full border border-white/20 bg-slate-950/70 px-4 py-2 text-sm font-bold">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Rasm tayyorlanmoqda
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VintageLessonArt({ topic }: { topic: string }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-[#c99651]/30">
+      <div className="absolute left-8 top-10 h-48 w-28 rounded-t-full border-4 border-[#70421f] bg-[#b8793d]/55" />
+      <div className="absolute left-14 top-4 h-56 w-9 rounded-t-full bg-[#6a3f24]" />
+      <div className="absolute left-6 top-24 h-28 w-36 rounded-t-[4rem] border-4 border-[#70421f] bg-[#d7a968]/70" />
+      <div className="absolute right-12 top-10 h-28 w-40 rounded-t-full border-4 border-[#70421f] bg-[#deb879]/80" />
+      <div className="absolute right-20 top-4 h-16 w-16 rounded-full bg-[#c58b44]" />
+      <div className="absolute bottom-12 left-1/2 h-28 w-56 -translate-x-1/2 rotate-[-5deg] rounded-xl border border-[#6b3d1c]/30 bg-[#f4dfac] shadow-xl">
+        <div className="absolute inset-y-4 left-1/2 w-px bg-[#80552e]/35" />
+        <div className="absolute left-5 top-6 h-1.5 w-20 rounded-full bg-[#8a5b2d]/45" />
+        <div className="absolute left-5 top-11 h-1.5 w-16 rounded-full bg-[#8a5b2d]/35" />
+        <div className="absolute right-5 top-7 h-1.5 w-20 rounded-full bg-[#8a5b2d]/45" />
+        <div className="absolute right-5 top-12 h-1.5 w-14 rounded-full bg-[#8a5b2d]/35" />
+      </div>
+      <div className="absolute bottom-16 right-10 rotate-6 rounded border-2 border-[#3b2413] bg-[#f5e7bf] px-5 py-4 text-center shadow-xl">
+        <div className="text-sm font-black tracking-[0.18em] text-[#3b2413]">TARAQQIY</div>
+        <div className="mt-2 h-1 w-24 rounded bg-[#7a5028]/45" />
+        <div className="mt-1 h-1 w-20 rounded bg-[#7a5028]/35" />
+      </div>
+      <div className="absolute bottom-8 left-12 h-2 w-32 rotate-[-25deg] rounded-full bg-[#3b2413]" />
+      <div className="absolute bottom-16 left-36 h-10 w-10 rounded-full border-4 border-[#3b2413]" />
+      <div className="absolute left-6 bottom-5 rounded-full bg-[#3b2413]/80 px-3 py-1 text-xs font-bold text-[#ffe7aa]">
+        {topic}
+      </div>
+    </div>
+  );
+}
+
+function ScrollIllustration() {
+  return (
+    <div className="relative hidden min-h-[230px] overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900/40 lg:block">
+      <div className="absolute left-8 top-8 h-40 w-48 rotate-[-5deg] rounded-2xl border border-amber-900/35 bg-gradient-to-br from-amber-100 to-amber-300 shadow-xl" />
+      <div className="absolute left-14 top-14 h-2 w-28 rounded bg-amber-900/35" />
+      <div className="absolute left-14 top-24 h-2 w-36 rounded bg-amber-900/25" />
+      <div className="absolute left-14 top-34 h-2 w-24 rounded bg-amber-900/25" />
+      <div className="absolute bottom-12 right-12 h-2 w-28 rotate-[-30deg] rounded-full bg-slate-300" />
+      <div className="absolute bottom-16 right-20 h-8 w-8 rounded-full bg-purple-400/70 blur-sm" />
+      <Sparkles className="absolute right-8 top-9 h-7 w-7 text-purple-300" />
+      <Star className="absolute bottom-8 left-12 h-5 w-5 text-yellow-300" />
+    </div>
+  );
+}
+
+function formatAttribution(image: ImageSearchResult) {
+  const creator = image.creator || image.provider;
+  const license = image.license || "source";
+  return `Image: ${image.title} - ${creator}, ${license}`;
+}
+
+function ActionButton({
+  icon: Icon,
+  label,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  return (
+    <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-600 px-4 text-sm font-bold text-slate-300 transition hover:border-purple-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-purple-400">
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+}
+
+function pickBestVoice(voices: SpeechSynthesisVoice[]) {
+  const preferred = [
+    "uz-UZ",
+    "uz",
+    "tr-TR",
+    "tr",
+    "az-AZ",
+    "az",
+    "ru-RU",
+    "ru",
+    "en-US",
+    "en",
+  ];
+
+  for (const lang of preferred) {
+    const voice = voices.find((item) => item.lang.toLowerCase().startsWith(lang.toLowerCase()));
+    if (voice) return voice;
+  }
+
+  return voices[0] ?? null;
+}
+
+function normalizeSpeechText(text: string) {
+  return text
+    .replace(/[–—]/g, ", ")
+    .replace(/['‘’`]/g, "")
+    .replace(/\bXIX\b/g, "o'n to'qqizinchi")
+    .replace(/\bXX\b/g, "yigirmanchi")
+    .replace(/\bAI\b/g, "sun'iy intellekt")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeSpeechTextForTemplate(text: string) {
+  return normalizeSpeechText(text)
+    .replace(/[–—]/g, ". ")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’`]/g, "'")
+    .replace(/\bXVIII\b/g, "o'n sakkizinchi")
+    .replace(/\bXVI\b/g, "o'n oltinchi")
+    .replace(/\bMahmudxo'ja\b/g, "Mahmud xo'ja")
+    .replace(/\bBehbudiy\b/g, "Beh bu diy")
+    .replace(/\bMovarounnahr\b/g, "Movaroun nahr")
+    .replace(/\b(\d{4})-yillar\b/g, "$1 yillar")
+    .replace(/\b(\d{4})-yil\b/g, "$1 yil")
+    .replace(/([.!?])\s*/g, "$1 ")
+    .replace(/;\s*/g, ". ")
+    .replace(/:\s*/g, ". ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitSpeechIntoChunks(text: string) {
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const sentence of sentences) {
+    const next = current ? `${current} ${sentence}` : sentence;
+    if (next.length > 230) {
+      if (current) chunks.push(current);
+      current = sentence;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks.length ? chunks : [text];
+}
+
+function getBrowserSpeechRate(voice: SpeechSynthesisVoice | null) {
+  const lang = voice?.lang.toLowerCase() || "";
+  if (lang.startsWith("uz")) return 0.9;
+  if (lang.startsWith("tr") || lang.startsWith("az")) return 0.84;
+  if (lang.startsWith("ru")) return 0.78;
+  return 0.76;
+}
+
+function buildTutorSpeech(topicTitle: string, baseSpeech: string) {
+  const speech = baseSpeech.trim();
+  if (speech.length > 520) return speech;
+
+  return [
+    speech,
+    `Endi buni sodda qilib bog'laymiz: ${topicTitle} mavzusida eng muhim narsa voqeani yodlash emas, uning sababini ko'rishdir.`,
+    "Avval muammo paydo bo'ladi, keyin odamlar shu muammoga javob izlaydi, oxirida jamiyatda yangi fikr yoki harakat tug'iladi.",
+    "Shu slaydda aynan qaysi muammo, qaysi yechim va qaysi oqibat borligini ajratib olishga harakat qiling.",
+  ].join(" ");
+}
+
+function buildSummaryPoints(topic: Topic) {
+  const fromSections = topic.lessonSections.slice(0, 3).map((section) => section.content);
+  const fromTimeline = topic.timeline.slice(0, 1).map((event) => `${event.year}: ${event.title}. ${event.whyImportant}`);
+  const fromCause = topic.causeMap.slice(0, 1).map((node) => `${node.title}: ${node.explanation}`);
+
+  return [
+    ...fromSections,
+    ...fromTimeline,
+    ...fromCause,
+    `${topic.title} mavzusini tushunish uchun asosiy savol: bu jarayon jamiyat hayotiga qanday ta'sir qilgan?`,
+  ].slice(0, 5);
+}
+
+function buildLessonSummaryPoints(lesson: LessonJson) {
+  return [
+    ...lesson.aiNotes.keyTakeaways,
+    ...lesson.aiNotes.importantDates,
+    ...lesson.aiNotes.causeEffectSummary,
+    lesson.aiNotes.oneSentenceSummary,
+  ].filter(Boolean).slice(0, 5);
+}
+
+function buildSourceText(topic: Topic) {
+  const sections = topic.lessonSections
+    .map((section) => `${section.title}: ${section.content}`)
+    .join("\n");
+  const timeline = topic.timeline
+    .map((event) => `${event.year}: ${event.title}. ${event.explanation} ${event.whyImportant}`)
+    .join("\n");
+  const causes = topic.causeMap
+    .map((node) => `${node.title}: ${node.explanation}`)
+    .join("\n");
+
+  return [
+    topic.description,
+    sections,
+    timeline,
+    causes,
+  ].filter(Boolean).join("\n\n");
+}
+
+function buildLocalLesson(topic: Topic): LessonJson {
+  const sections = topic.lessonSections.length ? topic.lessonSections : getFallbackLessonSections(topic);
+
+  return {
+    id: topic.id,
+    title: topic.title,
+    grade: topic.grade,
+    mission: `${topic.title} mavzusini sabab, jarayon va oqibatlar orqali tushunish`,
+    duration: {
+      lessonMinutes: 20,
+      breakMinutes: 5,
+      qaMinutes: 5,
+      interviewMinutes: 5,
+      threadsMinutes: 5,
+      pauseOnQuestion: true,
+    },
+    gamification: {
+      xpReward: 100,
+      badges: ["Dars boshlandi"],
+      league: "Demo",
+      streakReward: 0,
+    },
+    scenes: sections.slice(0, 8).map((section, index) => ({
+      sceneId: index + 1,
+      timeRange: `${String(index * 2).padStart(2, "0")}:00 - ${String((index + 1) * 2).padStart(2, "0")}:00`,
+      estimatedSeconds: 120,
+      teacherSpeech: [
+        `${section.title}. ${section.content}`,
+        "Bu qismni sabab, jarayon va oqibat sifatida tasavvur qiling.",
+        "Avval vaziyat qanday bo'lganini ko'ramiz, keyin shu vaziyat nimani o'zgartirishga majbur qilganini tushunamiz.",
+      ].join(" "),
+      presentation: {
+        type: getFallbackVisualType(topic, section.title, index),
+        title: section.title,
+        description: section.content,
+        assetSuggestion: getFallbackImagePrompt(topic, section.title),
+        imagePrompt: getFallbackImagePrompt(topic, section.title),
+        animationIdea: "Matn va rasm navbat bilan almashadi",
+        caption: section.content,
+      },
+      microQuestion: {
+        question: `${section.title} bo'yicha eng muhim xulosa nima?`,
+        options: [],
+        correctIndex: 0,
+        explanation: section.content,
+      },
+    })),
+    breakSection: {
+      durationMinutes: 5,
+      activitySuggestion: "Qisqa tanaffus qiling va asosiy sabablarni eslab ko'ring.",
+    },
+    qaPrompts: [`${topic.title} nima uchun muhim?`],
+    interview: {
+      persona: "Tarixiy shaxs",
+      disclaimer: "Bu tarixiy shaxs asosidagi AI simulyatsiya.",
+      biographyShort: topic.description,
+      suggestedQuestions: [],
+      sampleAnswers: [],
+    },
+    threads: {
+      prompt: "Bugungi darsdan eng muhim xulosangiz nima?",
+      samplePosts: [],
+    },
+    aiNotes: {
+      keyTakeaways: sections.slice(0, 3).map((section) => section.content),
+      examTips: ["Sabab, voqea va oqibatni alohida yodda saqlang."],
+      importantDates: topic.timeline.slice(0, 3).map((event) => `${event.year}: ${event.title}`),
+      causeEffectSummary: topic.causeMap.slice(0, 3).map((node) => `${node.title}: ${node.explanation}`),
+      oneSentenceSummary: topic.description,
+    },
+    timeline: topic.timeline.map((event) => ({
+      year: event.year,
+      title: event.title,
+      explanation: event.explanation,
+    })),
+    causeEffect: topic.causeMap.map((node) => ({
+      title: node.title,
+      explanation: node.explanation,
+    })),
+    quiz: topic.quiz.map((question) => ({
+      ...question,
+      skill: "fact",
+    })),
+    flashcards: sections.slice(0, 5).map((section) => ({
+      front: section.title,
+      back: section.content,
+    })),
+  };
+}
+
+function getFallbackLessonSections(topic: Topic) {
+  const normalized = topic.id.toLowerCase();
+
+  if (normalized.includes("amir-temur")) {
+    return [
+      {
+        id: "map",
+        title: "Temuriylar saltanati xaritasi",
+        content:
+          "Amir Temur davlati Movarounnahrdan boshlab keng hududlarni birlashtirdi; markaziy boshqaruv, harbiy tartib va savdo yo'llari saltanat kuchining asosiga aylandi.",
+      },
+      {
+        id: "capital",
+        title: "Samarqand - siyosiy va madaniy markaz",
+        content:
+          "Samarqand Temur davrida bunyodkorlik, ilm-fan va diplomatiya markaziga aylandi; me'moriy obidalar davlat qudratini ko'rsatib turardi.",
+      },
+      {
+        id: "governance",
+        title: "Boshqaruv va harbiy tartib",
+        content:
+          "Davlat ulus, viloyat va harbiy tuzilmalar orqali boshqarildi; intizom, mas'uliyat va tezkor aloqa Temur siyosatining muhim qismi edi.",
+      },
+      {
+        id: "legacy",
+        title: "Temuriylar merosi",
+        content:
+          "Amir Temur asos solgan siyosiy va madaniy an'analar keyingi Temuriylar davrida ilm-fan, me'morchilik va davlat boshqaruviga kuchli ta'sir ko'rsatdi.",
+      },
+    ];
+  }
+
+  if (normalized.includes("xonlik")) {
+    return [
+      {
+        id: "map",
+        title: "Buxoro, Xiva va Qo'qon xaritada",
+        content:
+          "Xonliklar davrida Movarounnahr va Xorazm hududida uch yirik siyosiy markaz shakllandi: Buxoro amirligi, Xiva xonligi va Qo'qon xonligi.",
+      },
+      {
+        id: "city",
+        title: "Shahar, bozor va hunarmandchilik",
+        content:
+          "Buxoro, Xiva va Qo'qon shaharlarida savdo, hunarmandchilik, madrasa va bozor hayoti jamiyatning iqtisodiy hamda madaniy markazi bo'lib xizmat qildi.",
+      },
+      {
+        id: "power",
+        title: "Ichki raqobat va tashqi bosim",
+        content:
+          "Xonliklar o'rtasidagi raqobat, boshqaruvdagi ziddiyatlar va tashqi siyosiy bosim mintaqaning keyingi taqdiriga kuchli ta'sir qildi.",
+      },
+      {
+        id: "summary",
+        title: "Davr sabog'i",
+        content:
+          "Xonliklar davri birlik, boshqaruv sifati, savdo yo'llari va diplomatiyaning tarixdagi ahamiyatini ko'rsatadi.",
+      },
+    ];
+  }
+
+  return [{ id: "overview", title: topic.title, content: topic.description }];
+}
+
+function getFallbackVisualType(topic: Topic, sectionTitle: string, index: number) {
+  const text = `${topic.title} ${sectionTitle}`.toLowerCase();
+  if (text.includes("xarita")) return "map";
+  if (text.includes("samarqand") || text.includes("shahar") || text.includes("bozor")) return "infographic";
+  if (text.includes("boshqaruv") || text.includes("tartib") || text.includes("meros")) return "infographic";
+  return index === 0 ? "map" : "infographic";
+}
+
+function getFallbackImagePrompt(topic: Topic, sectionTitle: string) {
+  const text = `${topic.title} ${sectionTitle}`.toLowerCase();
+  if (text.includes("amir temur") && text.includes("xarita")) return "Timurid Empire historical map Central Asia";
+  if (text.includes("samarqand")) return "Registan Samarkand Timurid architecture historical monument";
+  if (text.includes("amir temur")) return "Amir Timur Timurid history Central Asia manuscript miniature";
+  if (text.includes("xonlik") && text.includes("xarita")) return "Bukhara Khiva Kokand khanates historical map Central Asia";
+  if (text.includes("xiva")) return "Khiva old city historical architecture";
+  if (text.includes("buxoro")) return "Bukhara historical old city madrasa";
+  if (text.includes("qo'qon") || text.includes("qoqon")) return "Kokand Khanate palace historical architecture";
+  return `${topic.title} ${sectionTitle} historical Central Asia`;
+}
+
+function formatTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const rest = (seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${rest}`;
 }

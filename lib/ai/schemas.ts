@@ -6,7 +6,7 @@ export const LessonSceneSchema = z.object({
   estimatedSeconds: z.number(),
   teacherSpeech: z.string(),
   presentation: z.object({
-    type: z.enum(["map", "portrait-cards", "timeline", "video-placeholder", "quote", "comparison", "newspaper", "infographic"]),
+    type: z.enum(["map", "portrait-cards", "timeline", "video-placeholder", "quote", "comparison", "newspaper", "school", "infographic"]),
     title: z.string(),
     description: z.string(),
     assetSuggestion: z.string(),

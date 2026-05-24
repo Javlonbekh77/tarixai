@@ -1,0 +1,120 @@
+{
+  "expiresAt": 1780214380390,
+  "value": {
+    "success": true,
+    "providerUsed": "wikimedia",
+    "query": "Jadidchilik harakati",
+    "selectedImage": {
+      "id": "wikimedia:File:Flickr - Government Press Office (GPO) - Bab El Jadid.jpg",
+      "provider": "wikimedia",
+      "title": "Flickr - Government Press Office (GPO) - Bab El Jadid.jpg",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/5/58/Flickr_-_Government_Press_Office_%28GPO%29_-_Bab_El_Jadid.jpg",
+      "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/Flickr_-_Government_Press_Office_%28GPO%29_-_Bab_El_Jadid.jpg/960px-Flickr_-_Government_Press_Office_%28GPO%29_-_Bab_El_Jadid.jpg",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Flickr_-_Government_Press_Office_(GPO)_-_Bab_El_Jadid.jpg",
+      "creator": "Hans Pinn",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+      "attributionText": "Government Press Office (Israel)",
+      "width": 2919,
+      "height": 2156,
+      "tags": [
+        "Flickr - Government Press Office (GPO) - Bab El Jadid.jpg",
+        "Jadidchilik harakati",
+        "infographic"
+      ],
+      "score": 60
+    },
+    "alternatives": [
+      {
+        "id": "wikimedia:File:BAB EL JADID, THE NEW GATE LEADING INTO THE OLD CITY OF JERUSALEM. שער המוביל אל העיר העתיקה בירושלים.D10-140.jpg",
+        "provider": "wikimedia",
+        "title": "BAB EL JADID, THE NEW GATE LEADING INTO THE OLD CITY OF JERUSALEM. שער המוביל אל העיר העתיקה בירושלים.D10-140.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c2/BAB_EL_JADID%2C_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D10-140.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/BAB_EL_JADID%2C_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D10-140.jpg/960px-BAB_EL_JADID%2C_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D10-140.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:BAB_EL_JADID,_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D10-140.jpg",
+        "creator": "Hans Pinn",
+        "license": "Public domain",
+        "width": 3072,
+        "height": 2048,
+        "tags": [
+          "BAB EL JADID, THE NEW GATE LEADING INTO THE OLD CITY OF JERUSALEM. שער המוביל אל העיר העתיקה בירושלים.D10-140.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:BAB EL JADID, THE NEW GATE LEADING INTO THE OLD CITY OF JERUSALEM. שער המוביל אל העיר העתיקה בירושלים.D826-005.jpg",
+        "provider": "wikimedia",
+        "title": "BAB EL JADID, THE NEW GATE LEADING INTO THE OLD CITY OF JERUSALEM. שער המוביל אל העיר העתיקה בירושלים.D826-005.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/9/9e/BAB_EL_JADID%2C_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D826-005.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/BAB_EL_JADID%2C_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D826-005.jpg/960px-BAB_EL_JADID%2C_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D826-005.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:BAB_EL_JADID,_THE_NEW_GATE_LEADING_INTO_THE_OLD_CITY_OF_JERUSALEM._%D7%A9%D7%A2%D7%A8_%D7%94%D7%9E%D7%95%D7%91%D7%99%D7%9C_%D7%90%D7%9C_%D7%94%D7%A2%D7%99%D7%A8_%D7%94%D7%A2%D7%AA%D7%99%D7%A7%D7%94_%D7%91%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D.D826-005.jpg",
+        "creator": "Hans Pinn",
+        "license": "Public domain",
+        "width": 2919,
+        "height": 2156,
+        "tags": [
+          "BAB EL JADID, THE NEW GATE LEADING INTO THE OLD CITY OF JERUSALEM. שער המוביל אל העיר העתיקה בירושלים.D826-005.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:Alternate view of the building of the Muslim Religious Administration in Ufa.jpg",
+        "provider": "wikimedia",
+        "title": "Alternate view of the building of the Muslim Religious Administration in Ufa.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/b/b6/Alternate_view_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Alternate_view_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg/960px-Alternate_view_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:Alternate_view_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg",
+        "creator": "Unknown author Unknown author",
+        "license": "Public domain",
+        "width": 4100,
+        "height": 2694,
+        "tags": [
+          "Alternate view of the building of the Muslim Religious Administration in Ufa.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:View of the building of the Muslim Religious Administration in Ufa.jpg",
+        "provider": "wikimedia",
+        "title": "View of the building of the Muslim Religious Administration in Ufa.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/4/40/View_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/View_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg/960px-View_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:View_of_the_building_of_the_Muslim_Religious_Administration_in_Ufa.jpg",
+        "creator": "Unknown author Unknown author",
+        "license": "Public domain",
+        "width": 3970,
+        "height": 2658,
+        "tags": [
+          "View of the building of the Muslim Religious Administration in Ufa.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      },
+      {
+        "id": "wikimedia:File:The First Congress of the Muslims of Russia, 1905.jpg",
+        "provider": "wikimedia",
+        "title": "The First Congress of the Muslims of Russia, 1905.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/1/1c/The_First_Congress_of_the_Muslims_of_Russia%2C_1905.jpg",
+        "thumbnailUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/The_First_Congress_of_the_Muslims_of_Russia%2C_1905.jpg/960px-The_First_Congress_of_the_Muslims_of_Russia%2C_1905.jpg",
+        "sourceUrl": "https://commons.wikimedia.org/wiki/File:The_First_Congress_of_the_Muslims_of_Russia,_1905.jpg",
+        "creator": "Unknown author Unknown author",
+        "license": "Public domain",
+        "width": 2048,
+        "height": 1361,
+        "tags": [
+          "The First Congress of the Muslims of Russia, 1905.jpg",
+          "Jadidchilik harakati",
+          "infographic"
+        ],
+        "score": 60
+      }
+    ]
+  }
+}
